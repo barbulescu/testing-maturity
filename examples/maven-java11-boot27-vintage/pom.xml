@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.7.18</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>ch.barbulescu.testability.examples</groupId>
+    <artifactId>maven-java11-boot27-vintage</artifactId>
+    <version>0.0.1</version>
+    <packaging>jar</packaging>
+
+    <properties>
+        <java.version>11</java.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Spring Boot stopped including these by default from 2.4 onward; added back
+             explicitly here because this example specifically proves the probe correctly
+             splits results across mixed JUnit 4 (Vintage) and JUnit Jupiter engines. -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.vintage</groupId>
+            <artifactId>junit-vintage-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <profiles>
+        <!-- Activated by the harness for the "probe" run; a baseline run leaves this
+             project entirely unmodified. -->
+        <profile>
+            <id>testability-probe</id>
+            <activation>
+                <property>
+                    <name>testability.probe.repo</name>
+                </property>
+            </activation>
+            <repositories>
+                <repository>
+                    <id>testability-probe-repo</id>
+                    <url>${testability.probe.repo}</url>
+                </repository>
+            </repositories>
+            <dependencies>
+                <dependency>
+                    <groupId>${testability.probe.groupId}</groupId>
+                    <artifactId>${testability.probe.artifactId}</artifactId>
+                    <version>${testability.probe.version}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+</project>

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>ch.barbulescu.testability.examples</groupId>
+    <artifactId>maven-java17-forkcount0-multimodule</artifactId>
+    <version>0.0.1</version>
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>module-a</module>
+        <module>module-b</module>
+    </modules>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <junit.jupiter.version>5.10.2</junit.jupiter.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit.jupiter.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <!-- The whole reactor build runs tests for every module in this
+                         one JVM instead of forking a fresh process per module - this
+                         is exactly what the probe's basedir-based moduleDir resolution
+                         exists to handle correctly. -->
+                    <forkCount>0</forkCount>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!-- Activated by the harness for the "probe" run and inherited by both
+             modules; a baseline run leaves this reactor entirely unmodified. -->
+        <profile>
+            <id>testability-probe</id>
+            <activation>
+                <property>
+                    <name>testability.probe.repo</name>
+                </property>
+            </activation>
+            <repositories>
+                <repository>
+                    <id>testability-probe-repo</id>
+                    <url>${testability.probe.repo}</url>
+                </repository>
+            </repositories>
+            <dependencies>
+                <dependency>
+                    <groupId>${testability.probe.groupId}</groupId>
+                    <artifactId>${testability.probe.artifactId}</artifactId>
+                    <version>${testability.probe.version}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+</project>

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "buildTool": "MAVEN",
+  "onClasspath": {
+    "junit4": true,
+    "mockito": true,
+    "springBoot": true
+  },
+  "spring": {
+    "testClasses": 1,
+    "junit4Classes": 1,
+    "bootTestClasses": 1,
+    "sliceTestClasses": 0,
+    "mockBeanFields": 0
+  },
+  "bootStarts": {
+    "succeeded": 1,
+    "failed": 0,
+    "failureRootCauses": []
+  },
+  "probeErrors": []
+}

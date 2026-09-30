@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>ch.barbulescu.testability.examples</groupId>
+    <artifactId>maven-java8-surefire-2.12-jupiter</artifactId>
+    <version>0.0.1</version>
+    <packaging>jar</packaging>
+
+    <properties>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.8.2</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <!-- Predates the JUnit Platform provider entirely (introduced in 2.22.0):
+                     this version can only run JUnit 3/4 style tests, so Jupiter-only tests
+                     are silently never executed. A static check on the Surefire version is
+                     required to catch this, not the probe itself. -->
+                <version>2.12.4</version>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>testability-probe</id>
+            <activation>
+                <property>
+                    <name>testability.probe.repo</name>
+                </property>
+            </activation>
+            <repositories>
+                <repository>
+                    <id>testability-probe-repo</id>
+                    <url>${testability.probe.repo}</url>
+                </repository>
+            </repositories>
+            <dependencies>
+                <dependency>
+                    <groupId>${testability.probe.groupId}</groupId>
+                    <artifactId>${testability.probe.artifactId}</artifactId>
+                    <version>${testability.probe.version}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+</project>

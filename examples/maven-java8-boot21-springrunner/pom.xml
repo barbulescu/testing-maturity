@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.1.18.RELEASE</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>ch.barbulescu.testability.examples</groupId>
+    <artifactId>maven-java8-boot21-springrunner</artifactId>
+    <version>0.0.1</version>
+    <packaging>jar</packaging>
+
+    <properties>
+        <java.version>1.8</java.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+        <!-- Boot 2.1 defaults spring-boot-starter-test to JUnit 4 - no JUnit Platform
+             on the classpath at all, so Surefire uses its native JUnit 4 provider. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <profiles>
+        <profile>
+            <id>testability-probe</id>
+            <activation>
+                <property>
+                    <name>testability.probe.repo</name>
+                </property>
+            </activation>
+            <repositories>
+                <repository>
+                    <id>testability-probe-repo</id>
+                    <url>${testability.probe.repo}</url>
+                </repository>
+            </repositories>
+            <dependencies>
+                <dependency>
+                    <groupId>${testability.probe.groupId}</groupId>
+                    <artifactId>${testability.probe.artifactId}</artifactId>
+                    <version>${testability.probe.version}</version>
+                    <scope>test</scope>
+                </dependency>
+            </dependencies>
+        </profile>
+    </profiles>
+</project>

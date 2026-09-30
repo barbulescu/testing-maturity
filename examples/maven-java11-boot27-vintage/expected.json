@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "buildTool": "MAVEN",
+  "onClasspath": {
+    "junit4": true,
+    "vintage": true,
+    "testcontainers": false,
+    "wiremock": false,
+    "mockito": true,
+    "springBoot": true
+  },
+  "tests": {
+    "byEngine": {
+      "junit-vintage": 1,
+      "junit-jupiter": 2
+    },
+    "succeeded": 3,
+    "failed": 0,
+    "skipped": 0
+  },
+  "probeErrors": []
+}
