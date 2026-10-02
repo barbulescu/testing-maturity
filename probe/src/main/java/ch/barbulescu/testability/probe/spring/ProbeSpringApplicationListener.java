@@ -38,6 +38,7 @@ public final class ProbeSpringApplicationListener implements ApplicationListener
             }
         } else if (BootEventNames.READY.equals(eventClassName)) {
             Object springApplication = invoke(event, "getSpringApplication");
+            ContextTracker.shared().markBootStarted(invoke(event, "getApplicationContext"));
             ProbeRecorder.getInstance().recordBootStartSucceeded(durationSinceStart(springApplication));
         } else if (BootEventNames.FAILED.equals(eventClassName)) {
             Object springApplication = invoke(event, "getSpringApplication");

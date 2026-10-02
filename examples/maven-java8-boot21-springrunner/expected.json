@@ -11,7 +11,9 @@
     "junit4Classes": 1,
     "bootTestClasses": 1,
     "sliceTestClasses": 0,
-    "mockBeanFields": 0
+    "mockBeanFields": 0,
+    "contextsLoaded": 1,
+    "plainContextsLoaded": 0
   },
   "bootStarts": {
     "succeeded": 1,

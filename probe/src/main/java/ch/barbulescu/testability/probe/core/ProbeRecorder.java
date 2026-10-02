@@ -40,6 +40,14 @@ public final class ProbeRecorder {
     private final AtomicInteger bootTestClasses = new AtomicInteger();
     private final AtomicInteger sliceTestClasses = new AtomicInteger();
     private final AtomicInteger mockBeanFields = new AtomicInteger();
+    private final AtomicInteger contextsLoaded = new AtomicInteger();
+    private final AtomicInteger plainContextsLoaded = new AtomicInteger();
+
+    // Mock usage per finished test, split by whether its class is a Spring test class
+    private final AtomicInteger plainTests = new AtomicInteger();
+    private final AtomicInteger plainTestsUsingMocks = new AtomicInteger();
+    private final AtomicInteger springTests = new AtomicInteger();
+    private final AtomicInteger springTestsUsingMocks = new AtomicInteger();
 
     // Spring Boot application-start adapter
     private final AtomicBoolean bootStartsAdapterUsed = new AtomicBoolean(false);
@@ -104,6 +112,21 @@ public final class ProbeRecorder {
         skipped.incrementAndGet();
     }
 
+    /** Only tests that actually ran; skipped tests never reach this. */
+    public void recordTestMockUsage(boolean springTest, boolean usesMocks) {
+        if (springTest) {
+            springTests.incrementAndGet();
+            if (usesMocks) {
+                springTestsUsingMocks.incrementAndGet();
+            }
+        } else {
+            plainTests.incrementAndGet();
+            if (usesMocks) {
+                plainTestsUsingMocks.incrementAndGet();
+            }
+        }
+    }
+
     public void recordSpringTestClass(boolean isJUnit4, boolean isBootTest, boolean isSliceTest, int mockBeanFieldCount) {
         springAdapterUsed.set(true);
         springTestClasses.incrementAndGet();
@@ -117,6 +140,15 @@ public final class ProbeRecorder {
             sliceTestClasses.incrementAndGet();
         }
         mockBeanFields.addAndGet(mockBeanFieldCount);
+    }
+
+    /** Called once per distinct application context; plain means not started by Spring Boot. */
+    public void recordSpringContextLoaded(boolean plain) {
+        springAdapterUsed.set(true);
+        contextsLoaded.incrementAndGet();
+        if (plain) {
+            plainContextsLoaded.incrementAndGet();
+        }
     }
 
     public void recordBootStartSucceeded(Long durationMs) {
@@ -244,6 +276,14 @@ public final class ProbeRecorder {
             writer.name("skipped").value(skipped.get());
             writer.name("durationMs").value(durationMs.get());
             writer.endObject();
+
+            writer.name("mocking").beginObject();
+            writer.name("mockitoObserved").value(MockitoHook.isObserved());
+            writer.name("plainTests").value(plainTests.get());
+            writer.name("plainTestsUsingMocks").value(plainTestsUsingMocks.get());
+            writer.name("springTests").value(springTests.get());
+            writer.name("springTestsUsingMocks").value(springTestsUsingMocks.get());
+            writer.endObject();
         }
 
         if (springAdapterUsed.get()) {
@@ -253,6 +293,8 @@ public final class ProbeRecorder {
             writer.name("bootTestClasses").value(bootTestClasses.get());
             writer.name("sliceTestClasses").value(sliceTestClasses.get());
             writer.name("mockBeanFields").value(mockBeanFields.get());
+            writer.name("contextsLoaded").value(contextsLoaded.get());
+            writer.name("plainContextsLoaded").value(plainContextsLoaded.get());
             writer.endObject();
         }
 

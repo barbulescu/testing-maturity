@@ -8,12 +8,21 @@
     "succeeded": 1,
     "failed": 0
   },
+  "mocking": {
+    "mockitoObserved": true,
+    "plainTests": 0,
+    "plainTestsUsingMocks": 0,
+    "springTests": 1,
+    "springTestsUsingMocks": 1
+  },
   "spring": {
     "testClasses": 1,
     "junit4Classes": 0,
     "bootTestClasses": 1,
     "sliceTestClasses": 0,
-    "mockBeanFields": 3
+    "mockBeanFields": 3,
+    "contextsLoaded": 1,
+    "plainContextsLoaded": 0
   },
   "bootStarts": {
     "succeeded": 1,

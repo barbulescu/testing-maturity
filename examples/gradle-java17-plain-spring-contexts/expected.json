@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "buildTool": "GRADLE",
+  "onClasspath": {
+    "springBoot": false
+  },
+  "tests": {
+    "byEngine": {
+      "junit-jupiter": 3
+    },
+    "succeeded": 3,
+    "failed": 0
+  },
+  "mocking": {
+    "mockitoObserved": false,
+    "plainTests": 0,
+    "plainTestsUsingMocks": 0,
+    "springTests": 3,
+    "springTestsUsingMocks": 0
+  },
+  "spring": {
+    "testClasses": 3,
+    "bootTestClasses": 0,
+    "contextsLoaded": 2,
+    "plainContextsLoaded": 2
+  },
+  "probeErrors": []
+}

@@ -26,6 +26,8 @@ dependencies {
     // matched by class/annotation name via reflection instead of typed imports.
     compileOnly("org.springframework:spring-context:5.0.20.RELEASE")
     compileOnly("org.springframework:spring-test:5.0.20.RELEASE")
+    // Oldest version with the MockitoFramework listener API.
+    compileOnly("org.mockito:mockito-core:2.1.0")
 
     testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
     testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")

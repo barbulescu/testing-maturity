@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "buildTool": "GRADLE",
+  "tests": {
+    "succeeded": 8,
+    "failed": 0
+  },
+  "mocking": {
+    "mockitoObserved": true,
+    "plainTests": 6,
+    "plainTestsUsingMocks": 3,
+    "springTests": 2,
+    "springTestsUsingMocks": 1
+  },
+  "probeErrors": []
+}

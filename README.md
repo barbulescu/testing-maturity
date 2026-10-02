@@ -16,6 +16,7 @@ testability-probe/
 │   └── src/main/java/ch/barbulescu/testability/probe/
 │       ├── core/    # recorder, JSON writer, CI context, module identity, file sink
 │       ├── junit/   # JUnit Platform TestExecutionListener
+│       ├── mockito/ # Mockito MockCreationListener (loaded only when Mockito is present)
 │       └── spring/  # Spring TestExecutionListener + Boot ApplicationListener
 ├── classifier/   # reference CLI that turns a report into a level (not shipped with the probe)
 ├── harness/      # runs every example in a container, with and without the probe (not shipped)
@@ -69,10 +70,22 @@ In CI, the probe reads these GitLab variables and adds them to the report so it 
 | Hook | Registered via | Records |
 |---|---|---|
 | `junit.ProbeTestExecutionListener` | `META-INF/services/org.junit.platform.launcher.TestExecutionListener` | Test counts per engine (from the `[engine:…]` segment of the unique ID), pass/fail/skip, wall time |
-| `spring.ProbeSpringTestExecutionListener` | `META-INF/spring.factories` | For each Spring test class: JUnit 4 (`@RunWith`) or 5, `@SpringBootTest` or a slice annotation (`org.springframework.boot.test.autoconfigure.*`), and how many fields are annotated `@MockBean`/`@MockitoBean` |
+| `spring.ProbeSpringTestExecutionListener` | `META-INF/spring.factories` | For each Spring test class: JUnit 4 (`@RunWith`) or 5, `@SpringBootTest` or a slice annotation (`org.springframework.boot.test.autoconfigure.*`), and how many fields are annotated `@MockBean`/`@MockitoBean`. Also counts each distinct application context the tests ran against, with or without Spring Boot |
+| `mockito.ProbeMockCreationListener` | Mockito's `MockitoFramework.addListener`, installed by the JUnit listener on each thread that runs tests | Every mock or spy Mockito creates (and `mockStatic` on Mockito 3.5+), attributed to the test that is running on that thread |
 | `spring.ProbeSpringApplicationListener` | `META-INF/spring.factories` | Spring Boot startup time, from `ApplicationStartingEvent` to `ApplicationReadyEvent` or `ApplicationFailedEvent`. On failure it records the root-cause exception **type**, never the message |
 
-All Spring and Boot types are matched **by class or annotation name**. The jar is compiled against the oldest supported APIs (`junit-platform-launcher` 1.0.x, `spring-test`/`spring-context` 5.0.x) and never against Spring Boot, so the same jar works on Boot 2.x through 4.x and JUnit 5 through 6.
+All Spring and Boot types are matched **by class or annotation name**. The jar is compiled against the oldest supported APIs (`junit-platform-launcher` 1.0.x, `spring-test`/`spring-context` 5.0.x, `mockito-core` 2.1) and never against Spring Boot, so the same jar works on Boot 2.x through 4.x, JUnit 5 through 6 and Mockito 2 through 5. Where a signature changed between versions (Mockito's `addListener` returns `void` in 2.1 and `MockitoFramework` later), the probe calls the method reflectively.
+
+### Mock usage
+
+The report counts how many tests used Mockito, split into plain tests and Spring tests:
+
+- **When a test counts as using mocks.** Mockito's listeners are thread-local, so the JUnit listener installs the probe's listener on each thread when a test or container starts there. Every mock created on that thread is attributed to the node currently running on it:
+  - A mock created inside the test method, its `@BeforeEach`, or by `MockitoExtension` counts for that test only.
+  - A mock created at class level counts for every test in the class. That includes a field initializer, which runs before the method's start event, and `@BeforeAll`.
+  - A Spring test class that declares `@MockBean`, `@MockitoBean`, `@SpyBean` or `@MockitoSpyBean` fields counts as using mocks even when its context, and so its mocks, came from the cache.
+- **When a test counts as a Spring test.** It counts as Spring if the probe's Spring test listener saw its class; otherwise it counts as plain.
+- **Only finished tests count.** Skipped tests are left out.
 
 ### Guarantees
 
@@ -104,7 +117,10 @@ All Spring and Boot types are matched **by class or annotation name**. The jar i
   "tests": { "byEngine": { "junit-jupiter": 41 }, "succeeded": 40,
              "failed": 1, "skipped": 0, "durationMs": 18230 },
   "spring": { "testClasses": 12, "junit4Classes": 3, "bootTestClasses": 4,
-              "sliceTestClasses": 5, "mockBeanFields": 17 },
+              "sliceTestClasses": 5, "mockBeanFields": 17,
+              "contextsLoaded": 3, "plainContextsLoaded": 1 },
+  "mocking": { "mockitoObserved": true, "plainTests": 25, "plainTestsUsingMocks": 9,
+               "springTests": 16, "springTestsUsingMocks": 11 },
   "bootStarts": { "succeeded": 2, "failed": 1, "maxDurationMs": 9400,
                   "failureRootCauses": ["java.net.UnknownHostException"] },
   "probeErrors": []
@@ -115,6 +131,11 @@ How to read it:
 
 - `onClasspath` shows which libraries are **present** on the classpath, not whether any test used them. The probe checks with `Class.forName(name, false, loader)`, so no class is initialized.
 - `tests`, `spring` and `bootStarts` are left out when their adapter never ran. A missing `spring` section means no Spring test listener fired. It does not mean there were zero Spring tests. For example, a custom `@TestExecutionListeners` can replace the default listeners, and then the probe's listener never runs.
+- `spring.contextsLoaded` counts distinct application contexts, not test classes. Test classes that share a context through Spring's context cache count it once. A context recreated after `@DirtiesContext` counts again, and every level of a `@ContextHierarchy` counts. `spring.plainContextsLoaded` is the subset that Spring Boot did not start, for example contexts from `@ContextConfiguration` or `@SpringJUnitConfig`. A context that fails to load is not counted here. With Boot, a failed load shows up in `bootStarts.failed`. Without Boot, it shows up only as failed tests.
+- `mocking` appears whenever `tests` does. If `mockitoObserved` is `false`, Mockito was absent or older than 2.1, so a zero count tells you nothing. Only Mockito is detected; EasyMock, MockK and JMockit are not. Attribution is best effort:
+  - A mock created on a thread other than the test's isn't counted.
+  - Under parallel execution, work stealing can attribute a class-level mock to the wrong class.
+  - A mock defined in a `@TestConfiguration`, rather than as a field, counts only for the first test class that loads that context.
 - JUnit Platform's `ABORTED` status is counted under `failed`.
 - `ci.*` fields are `null` outside CI.
 - The field name `markers` is reserved for a possible future agent, so adding it won't require a new schema version.
@@ -162,6 +183,8 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java17-boot3-tc-wiremock` | Testcontainers and WireMock detected; `@Testcontainers(disabledWithoutDocker = true)` avoids needing Docker-in-Docker |
 | `gradle-java21-boot4-junit6` | Binary compatibility with the newest stack |
 | `gradle-java17-context-fails` | Spring context fails to load; root-cause type captured, no message leaked |
+| `gradle-java17-plain-spring-contexts` | Spring without Boot: three test classes over two configurations give two plain contexts |
+| `gradle-java17-mocking` | Mock usage counted per test and split between plain and Spring tests: `@Mock` via `MockitoExtension`, an inline mock in one of two methods, a field initializer, `@MockitoBean` |
 | `gradle-java17-mock-everything` | `@MockBean` fields counted on a `@SpringBootTest` that doesn't test any real code |
 | `gradle-java17-custom-listeners` | `@TestExecutionListeners` replaces the defaults: `spring` section absent, `tests` section present |
 | `maven-java17-forkcount0-multimodule` | Tests run inside the Maven JVM: one report per module, each with the correct `moduleDir` |

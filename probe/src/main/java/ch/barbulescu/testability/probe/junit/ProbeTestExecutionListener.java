@@ -1,9 +1,14 @@
 package ch.barbulescu.testability.probe.junit;
 
 import ch.barbulescu.testability.probe.core.ProbeRecorder;
+import ch.barbulescu.testability.probe.core.MockitoHook;
 import ch.barbulescu.testability.probe.core.Safe;
+import ch.barbulescu.testability.probe.core.TestNodeTracker;
 import org.junit.platform.engine.TestExecutionResult;
+import org.junit.platform.engine.TestSource;
 import org.junit.platform.engine.UniqueId;
+import org.junit.platform.engine.support.descriptor.ClassSource;
+import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.TestExecutionListener;
 import org.junit.platform.launcher.TestIdentifier;
 import org.junit.platform.launcher.TestPlan;
@@ -23,6 +28,16 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
         });
     }
 
+    /** Called on the thread that runs the node, which is what makes mock attribution work. */
+    @Override
+    public void executionStarted(TestIdentifier testIdentifier) {
+        Safe.run(() -> {
+            TestNodeTracker.getInstance().nodeStarted(
+                    testIdentifier.getUniqueId(), testIdentifier.getParentId().orElse(null), classNameOf(testIdentifier));
+            MockitoHook.ensureInstalledOnCurrentThread();
+        });
+    }
+
     @Override
     public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult result) {
         Safe.run(() -> {
@@ -36,7 +51,11 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
             } else {
                 recorder.recordTestFailed(engineId);
             }
+            TestNodeTracker tracker = TestNodeTracker.getInstance();
+            String id = testIdentifier.getUniqueId();
+            recorder.recordTestMockUsage(tracker.isSpringTest(id), tracker.usesMocks(id));
         });
+        Safe.run(() -> TestNodeTracker.getInstance().nodeFinished(testIdentifier.getUniqueId()));
     }
 
     @Override
@@ -51,6 +70,17 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
     @Override
     public void testPlanExecutionFinished(TestPlan testPlan) {
         Safe.run(() -> ProbeRecorder.getInstance().flush());
+    }
+
+    private static String classNameOf(TestIdentifier testIdentifier) {
+        TestSource source = testIdentifier.getSource().orElse(null);
+        if (source instanceof MethodSource) {
+            return ((MethodSource) source).getClassName();
+        }
+        if (source instanceof ClassSource) {
+            return ((ClassSource) source).getClassName();
+        }
+        return null;
     }
 
     private static String engineIdOf(TestIdentifier testIdentifier) {

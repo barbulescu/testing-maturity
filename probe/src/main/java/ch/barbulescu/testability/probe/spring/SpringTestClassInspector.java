@@ -37,16 +37,20 @@ final class SpringTestClassInspector {
             }
         }
 
-        return new SpringTestClassFacts(junit4, bootTest, sliceTest, countMockBeanFields(testClass));
+        return new SpringTestClassFacts(junit4, bootTest, sliceTest,
+                countFieldsAnnotated(testClass, "MockBean", "MockitoBean"),
+                countFieldsAnnotated(testClass, "SpyBean", "MockitoSpyBean"));
     }
 
-    private static int countMockBeanFields(Class<?> testClass) {
+    private static int countFieldsAnnotated(Class<?> testClass, String... annotationSimpleNames) {
         int count = 0;
         for (Field field : allFieldsIncludingInherited(testClass)) {
             for (Annotation annotation : field.getAnnotations()) {
                 String simpleName = annotation.annotationType().getSimpleName();
-                if ("MockBean".equals(simpleName) || "MockitoBean".equals(simpleName)) {
-                    count++;
+                for (String wanted : annotationSimpleNames) {
+                    if (wanted.equals(simpleName)) {
+                        count++;
+                    }
                 }
             }
         }

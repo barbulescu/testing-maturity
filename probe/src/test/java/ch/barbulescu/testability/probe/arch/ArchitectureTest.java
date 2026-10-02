@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 /**
  * The probe jar must stay dependency-free: {@code core} may only ever see
  * the JDK, {@code junit} may only add the JUnit Platform on top of that,
- * and {@code spring} may only add Spring (never JUnit or Boot - see
+ * {@code mockito} only Mockito, and {@code spring} only Spring (never JUnit or Boot - see
  * {@code build.gradle.kts} for why).
  */
 class ArchitectureTest {
@@ -37,6 +37,19 @@ class ArchitectureTest {
                         "ch.barbulescu.testability.probe.core..",
                         "ch.barbulescu.testability.probe.junit..",
                         "org.junit.platform..")
+                .check(PROBE_CLASSES);
+    }
+
+    @Test
+    void mockitoAdapterOnlyDependsOnMockitoAndCore() {
+        ArchRuleDefinition.classes()
+                .that().resideInAPackage("..mockito..")
+                .should().onlyDependOnClassesThat()
+                .resideInAnyPackage(
+                        "java..", "javax..",
+                        "ch.barbulescu.testability.probe.core..",
+                        "ch.barbulescu.testability.probe.mockito..",
+                        "org.mockito..")
                 .check(PROBE_CLASSES);
     }
 
