@@ -144,7 +144,8 @@ How to read it:
   - A mock created on a thread other than the test's isn't counted.
   - Under parallel execution, work stealing can attribute a class-level mock to the wrong class.
   - A mock defined in a `@TestConfiguration`, rather than as a field, counts only for the first test class that loads that context.
-- JUnit Platform's `ABORTED` status is counted under `failed`.
+- JUnit Platform's `ABORTED` status (for example a failing assumption) is counted under `failed`.
+- `tests.skipped` counts disabled tests the way Gradle and Surefire do. JUnit reports a skipped container, such as a `@Disabled` or `@Ignore` class, without any events for its children, so the probe counts the tests below it from the test plan. A skipped `@ParameterizedTest`, `@RepeatedTest` or `@TestFactory` counts as one test, because its invocations only exist at run time. Tests disabled by commenting out the code or the annotation are invisible to the probe.
 - `ci.*` fields are `null` outside CI.
 - The field name `markers` is reserved for a possible future agent, so adding it won't require a new schema version.
 
@@ -194,6 +195,7 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java17-plain-spring-contexts` | Spring without Boot: three test classes over two configurations give two plain contexts |
 | `gradle-java17-mocking` | Mock usage counted per test and split between plain and Spring tests: `@Mock` via `MockitoExtension`, an inline mock in one of two methods, a field initializer, `@MockitoBean` |
 | `gradle-java17-mock-everything` | `@MockBean` fields counted on a `@SpringBootTest` that doesn't test any real code |
+| `gradle-java17-disabled-tests` | `@Disabled` on a method, a class and a nested class, disabled parameterized and repeated tests, Vintage `@Ignore` on a method and a class, and a failing assumption: all disabled tests counted as skipped |
 | `gradle-java17-custom-listeners` | `@TestExecutionListeners` replaces the defaults: `spring` section absent, `tests` section present |
 | `maven-java17-forkcount0-multimodule` | Tests run inside the Maven JVM: one report per module, each with the correct `moduleDir` |
 | `gradle-java17-parallel-forks` | `maxParallelForks = 2`: two reports for the same module with different `workerId`s |

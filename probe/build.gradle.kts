@@ -34,8 +34,8 @@ dependencies {
     testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")
     // The compileOnly launcher above pins the oldest API our production code
     // may use; running our own tests needs a launcher that actually matches
-    // the jupiter-engine version above.
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.1.3")
+    // the jupiter-engine version above. Tests also build TestIdentifiers against it.
+    testImplementation("org.junit.platform:junit-platform-launcher:6.1.3")
     // For fixture classes in spring package tests: real annotations beat hand-rolled fakes.
     // spring-boot-test pulls a matching spring-test transitively.
     testImplementation("org.springframework.boot:spring-boot-test:3.5.16")
