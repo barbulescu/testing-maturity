@@ -48,6 +48,7 @@ public final class ProbeRecorder {
     private final AtomicInteger plainTestsUsingMocks = new AtomicInteger();
     private final AtomicInteger springTests = new AtomicInteger();
     private final AtomicInteger springTestsUsingMocks = new AtomicInteger();
+    private final AtomicInteger testsUsingStaticMocks = new AtomicInteger();
 
     // Spring Boot application-start adapter
     private final AtomicBoolean bootStartsAdapterUsed = new AtomicBoolean(false);
@@ -112,8 +113,14 @@ public final class ProbeRecorder {
         skipped.incrementAndGet();
     }
 
-    /** Only tests that actually ran; skipped tests never reach this. */
-    public void recordTestMockUsage(boolean springTest, boolean usesMocks) {
+    /**
+     * Only tests that actually ran; skipped tests never reach this. {@code mockKinds}
+     * combines {@link TestNodeTracker}'s kind flags.
+     */
+    public void recordTestMockUsage(boolean springTest, boolean usesMocks, int mockKinds) {
+        if ((mockKinds & TestNodeTracker.STATIC_MOCK) != 0) {
+            testsUsingStaticMocks.incrementAndGet();
+        }
         if (springTest) {
             springTests.incrementAndGet();
             if (usesMocks) {
@@ -283,6 +290,7 @@ public final class ProbeRecorder {
             writer.name("plainTestsUsingMocks").value(plainTestsUsingMocks.get());
             writer.name("springTests").value(springTests.get());
             writer.name("springTestsUsingMocks").value(springTestsUsingMocks.get());
+            writer.name("testsUsingStaticMocks").value(testsUsingStaticMocks.get());
             writer.endObject();
         }
 

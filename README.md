@@ -95,6 +95,12 @@ The report counts how many tests used Mockito, split into plain tests and Spring
 - **When a test counts as a Spring test.** It counts as Spring if the probe's Spring test listener saw its class; otherwise it counts as plain.
 - **Only finished tests count.** Skipped tests are left out.
 
+The same attribution also counts tests that use mocks known as test smells:
+
+| Field | Counts tests that | Detected by |
+|---|---|---|
+| `testsUsingStaticMocks` | mock a static method with `mockStatic` | Mockito's `onStaticMockCreated` callback (Mockito 3.5+) |
+
 ### Guarantees
 
 - **The probe never breaks the build.** Every entry point runs through `Safe.run`, which catches any `Throwable` and records its type in `probeErrors`. Each report field is computed on its own, so one bad value (for example a malformed environment variable) leaves that field empty and the rest of the report is still written. If writing the report fails, the build still succeeds.
@@ -128,7 +134,8 @@ The report counts how many tests used Mockito, split into plain tests and Spring
               "sliceTestClasses": 5, "mockBeanFields": 17,
               "contextsLoaded": 3, "plainContextsLoaded": 1 },
   "mocking": { "mockitoObserved": true, "plainTests": 25, "plainTestsUsingMocks": 9,
-               "springTests": 16, "springTestsUsingMocks": 11 },
+               "springTests": 16, "springTestsUsingMocks": 11,
+               "testsUsingStaticMocks": 2 },
   "bootStarts": { "succeeded": 2, "failed": 1, "maxDurationMs": 9400,
                   "failureRootCauses": ["java.net.UnknownHostException"] },
   "probeErrors": []
@@ -194,6 +201,7 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java17-context-fails` | Spring context fails to load; root-cause type captured, no message leaked |
 | `gradle-java17-plain-spring-contexts` | Spring without Boot: three test classes over two configurations give two plain contexts |
 | `gradle-java17-mocking` | Mock usage counted per test and split between plain and Spring tests: `@Mock` via `MockitoExtension`, an inline mock in one of two methods, a field initializer, `@MockitoBean` |
+| `gradle-java17-mock-smells` | Mockito smells counted per test, each next to a test without it: static mocking |
 | `gradle-java17-mock-everything` | `@MockBean` fields counted on a `@SpringBootTest` that doesn't test any real code |
 | `gradle-java17-disabled-tests` | `@Disabled` on a method, a class and a nested class, disabled parameterized and repeated tests, Vintage `@Ignore` on a method and a class, and a failing assumption: all disabled tests counted as skipped |
 | `gradle-java17-custom-listeners` | `@TestExecutionListeners` replaces the defaults: `spring` section absent, `tests` section present |

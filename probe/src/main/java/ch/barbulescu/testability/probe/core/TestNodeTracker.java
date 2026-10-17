@@ -5,6 +5,7 @@ import java.util.Deque;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Attributes what happens on a thread - Mockito creating a mock - to the
@@ -21,12 +22,15 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class TestNodeTracker {
 
+    /** Kinds of mock a test used, combined as bit flags. */
+    public static final int STATIC_MOCK = 1;
+
     private static final TestNodeTracker INSTANCE = new TestNodeTracker();
 
     private final ThreadLocal<Deque<String>> running = ThreadLocal.withInitial(ArrayDeque::new);
     private final Map<String, String> parentOf = new ConcurrentHashMap<>();
     private final Map<String, String> classNameOf = new ConcurrentHashMap<>();
-    private final Set<String> nodesThatCreatedMocks = ConcurrentHashMap.newKeySet();
+    private final Map<String, AtomicInteger> mockKindsByNode = new ConcurrentHashMap<>();
     private final Set<String> springClasses = ConcurrentHashMap.newKeySet();
     private final Set<String> springClassesDeclaringMocks = ConcurrentHashMap.newKeySet();
 
@@ -59,9 +63,15 @@ public final class TestNodeTracker {
      * otherwise count against every test of the engine.
      */
     public void mockCreatedOnCurrentThread() {
+        mockCreatedOnCurrentThread(0);
+    }
+
+    /** {@code kinds} is a combination of the kind flags above, or 0 for an ordinary mock. */
+    public void mockCreatedOnCurrentThread(int kinds) {
         String current = running.get().peek();
         if (current != null && parentOf.containsKey(current)) {
-            nodesThatCreatedMocks.add(current);
+            AtomicInteger nodeKinds = mockKindsByNode.computeIfAbsent(current, key -> new AtomicInteger());
+            nodeKinds.accumulateAndGet(kinds, (a, b) -> a | b);
         }
     }
 
@@ -83,10 +93,22 @@ public final class TestNodeTracker {
             return true;
         }
         for (String node = id; node != null; node = parentOf.get(node)) {
-            if (nodesThatCreatedMocks.contains(node)) {
+            if (mockKindsByNode.containsKey(node)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /** The kind flags of every mock created by this node or any of its ancestors. */
+    public int mockKinds(String id) {
+        int kinds = 0;
+        for (String node = id; node != null; node = parentOf.get(node)) {
+            AtomicInteger nodeKinds = mockKindsByNode.get(node);
+            if (nodeKinds != null) {
+                kinds |= nodeKinds.get();
+            }
+        }
+        return kinds;
     }
 }

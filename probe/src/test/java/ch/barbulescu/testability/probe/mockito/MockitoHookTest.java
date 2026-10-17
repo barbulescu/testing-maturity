@@ -4,12 +4,14 @@ import ch.barbulescu.testability.probe.core.MockitoHook;
 import ch.barbulescu.testability.probe.core.TestNodeTracker;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -53,6 +55,27 @@ class MockitoHookTest {
     }
 
     @Test
+    void staticMockIsFlagged() {
+        String node = start("static");
+        MockitoHook.ensureInstalledOnCurrentThread();
+
+        try (MockedStatic<StaticHolder> ignored = Mockito.mockStatic(StaticHolder.class)) {
+            assertTrue(tracker.usesMocks(node));
+            assertEquals(TestNodeTracker.STATIC_MOCK, tracker.mockKinds(node) & TestNodeTracker.STATIC_MOCK);
+        }
+    }
+
+    @Test
+    void ordinaryMockIsNotFlaggedAsStatic() {
+        String node = start("ordinary");
+        MockitoHook.ensureInstalledOnCurrentThread();
+
+        Mockito.mock(Runnable.class);
+
+        assertEquals(0, tracker.mockKinds(node) & TestNodeTracker.STATIC_MOCK);
+    }
+
+    @Test
     void nodeWithoutMocksIsNotMarked() {
         String node = start("nothing");
         MockitoHook.ensureInstalledOnCurrentThread();
@@ -67,6 +90,12 @@ class MockitoHookTest {
             MockitoHook.ensureInstalledOnCurrentThread();
             MockitoHook.ensureInstalledOnCurrentThread();
         });
+    }
+
+    static final class StaticHolder {
+        static String value() {
+            return "real";
+        }
     }
 
     private String start(String name) {

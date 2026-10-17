@@ -2,6 +2,7 @@ package ch.barbulescu.testability.probe.core;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -41,6 +42,23 @@ class TestNodeTrackerTest {
 
         assertTrue(tracker.usesMocks(CLASS_A + "/[method:one()]"));
         assertFalse(tracker.usesMocks(CLASS_B + "/[method:one()]"));
+    }
+
+    @Test
+    void mockKindsCombineAcrossTheTestAndItsAncestors() {
+        tracker.nodeStarted(ENGINE, null, null);
+        tracker.nodeStarted(CLASS_A, ENGINE, "A");
+        tracker.mockCreatedOnCurrentThread(TestNodeTracker.STATIC_MOCK);
+        tracker.nodeStarted(CLASS_A + "/[method:one()]", CLASS_A, "A");
+        tracker.mockCreatedOnCurrentThread();
+        tracker.nodeFinished(CLASS_A + "/[method:one()]");
+        tracker.nodeFinished(CLASS_A);
+        tracker.nodeStarted(CLASS_B, ENGINE, "B");
+        tracker.nodeStarted(CLASS_B + "/[method:one()]", CLASS_B, "B");
+        tracker.mockCreatedOnCurrentThread();
+
+        assertEquals(TestNodeTracker.STATIC_MOCK, tracker.mockKinds(CLASS_A + "/[method:one()]"));
+        assertEquals(0, tracker.mockKinds(CLASS_B + "/[method:one()]"));
     }
 
     @Test

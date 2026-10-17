@@ -62,7 +62,7 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
             }
             TestNodeTracker tracker = TestNodeTracker.getInstance();
             String id = testIdentifier.getUniqueId();
-            recorder.recordTestMockUsage(tracker.isSpringTest(id), tracker.usesMocks(id));
+            recorder.recordTestMockUsage(tracker.isSpringTest(id), tracker.usesMocks(id), tracker.mockKinds(id));
         });
         Safe.run(() -> TestNodeTracker.getInstance().nodeFinished(testIdentifier.getUniqueId()));
     }
