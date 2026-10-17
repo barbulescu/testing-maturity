@@ -3,12 +3,16 @@
   "buildTool": "GRADLE",
   "tests": {
     "byEngine": {
-      "junit-jupiter": 5,
+      "junit-jupiter": 6,
       "junit-vintage": 2
     },
-    "succeeded": 7,
+    "succeeded": 8,
     "failed": 0,
-    "fixedOrderClasses": 2
+    "fixedOrderClasses": 2,
+    "byDuration": {
+      "1s-10s": 1,
+      "10s+": 0
+    }
   },
   "probeErrors": []
 }

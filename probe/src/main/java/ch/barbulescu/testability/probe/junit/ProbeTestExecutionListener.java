@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -28,6 +29,7 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
 
     private volatile TestPlan testPlan;
     private final Set<String> inspectedClasses = ConcurrentHashMap.newKeySet();
+    private final Map<String, Long> testStartNanos = new ConcurrentHashMap<>();
 
     @Override
     public void testPlanExecutionStarted(TestPlan testPlan) {
@@ -42,6 +44,11 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
     /** Called on the thread that runs the node, which is what makes mock attribution work. */
     @Override
     public void executionStarted(TestIdentifier testIdentifier) {
+        Safe.run(() -> {
+            if (testIdentifier.isTest()) {
+                testStartNanos.put(testIdentifier.getUniqueId(), System.nanoTime());
+            }
+        });
         Safe.run(() -> {
             TestNodeTracker.getInstance().nodeStarted(
                     testIdentifier.getUniqueId(), testIdentifier.getParentId().orElse(null), classNameOf(testIdentifier));
@@ -93,6 +100,10 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
                 recorder.recordTestSucceeded(engineId);
             } else {
                 recorder.recordTestFailed(engineId);
+            }
+            Long startNanos = testStartNanos.remove(testIdentifier.getUniqueId());
+            if (startNanos != null) {
+                recorder.recordTestDuration((System.nanoTime() - startNanos) / 1_000_000);
             }
             TestNodeTracker tracker = TestNodeTracker.getInstance();
             String id = testIdentifier.getUniqueId();

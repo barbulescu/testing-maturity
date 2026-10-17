@@ -33,6 +33,11 @@ public final class ProbeRecorder {
     private final AtomicLong startNanos = new AtomicLong(-1);
     private final AtomicLong durationMs = new AtomicLong();
     private final AtomicInteger fixedOrderClasses = new AtomicInteger();
+    // Finished tests by how long they took, from start to finish event.
+    private static final long[] DURATION_BUCKET_MINIMUMS_MS = {0, 100, 1_000, 10_000};
+    private static final String[] DURATION_BUCKET_NAMES = {"<100ms", "100ms-1s", "1s-10s", "10s+"};
+    private final AtomicInteger[] testsByDuration = newCounters(DURATION_BUCKET_NAMES.length);
+    private final AtomicLong maxTestDurationMs = new AtomicLong();
 
     // Spring test-class adapter
     private final AtomicBoolean springAdapterUsed = new AtomicBoolean(false);
@@ -159,6 +164,20 @@ public final class ProbeRecorder {
                 plainTestsUsingMocks.incrementAndGet();
             }
         }
+    }
+
+    public void recordTestDuration(long durationMs) {
+        testsByDuration[durationBucketIndex(durationMs)].incrementAndGet();
+        maxTestDurationMs.accumulateAndGet(durationMs, Math::max);
+    }
+
+    static int durationBucketIndex(long durationMs) {
+        for (int i = DURATION_BUCKET_MINIMUMS_MS.length - 1; i > 0; i--) {
+            if (durationMs >= DURATION_BUCKET_MINIMUMS_MS[i]) {
+                return i;
+            }
+        }
+        return 0;
     }
 
     /** A test class whose tests run in a fixed order, e.g. {@code @TestMethodOrder(OrderAnnotation.class)}. */
@@ -328,6 +347,12 @@ public final class ProbeRecorder {
             writer.name("skipped").value(skipped.get());
             writer.name("durationMs").value(durationMs.get());
             writer.name("fixedOrderClasses").value(fixedOrderClasses.get());
+            writer.name("byDuration").beginObject();
+            for (int i = 0; i < DURATION_BUCKET_NAMES.length; i++) {
+                writer.name(DURATION_BUCKET_NAMES[i]).value(testsByDuration[i].get());
+            }
+            writer.endObject();
+            writer.name("maxTestDurationMs").value(maxTestDurationMs.get());
             writer.endObject();
 
             writer.name("mocking").beginObject();

@@ -47,6 +47,16 @@ class ProbeRecorderTest {
     }
 
     @Test
+    void durationsAreBucketedByLowerBound() {
+        assertEquals(0, ProbeRecorder.durationBucketIndex(0));
+        assertEquals(0, ProbeRecorder.durationBucketIndex(99));
+        assertEquals(1, ProbeRecorder.durationBucketIndex(100));
+        assertEquals(1, ProbeRecorder.durationBucketIndex(999));
+        assertEquals(2, ProbeRecorder.durationBucketIndex(1_000));
+        assertEquals(3, ProbeRecorder.durationBucketIndex(10_000));
+    }
+
+    @Test
     void safelyReturnsTheRealValueWhenComputationSucceeds() {
         ProbeRecorder recorder = ProbeRecorder.getInstance();
 
