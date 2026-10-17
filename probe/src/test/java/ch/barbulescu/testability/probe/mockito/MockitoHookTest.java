@@ -53,6 +53,27 @@ class MockitoHookTest {
         Mockito.spy(new ArrayList<String>());
 
         assertTrue(tracker.usesMocks(node));
+        assertEquals(TestNodeTracker.SPY, tracker.mockKinds(node) & TestNodeTracker.SPY);
+    }
+
+    @Test
+    void partialMockIsFlaggedAsSpy() {
+        String node = start("partial");
+        MockitoHook.ensureInstalledOnCurrentThread();
+
+        Mockito.mock(ArrayList.class, Mockito.CALLS_REAL_METHODS);
+
+        assertEquals(TestNodeTracker.SPY, tracker.mockKinds(node) & TestNodeTracker.SPY);
+    }
+
+    @Test
+    void ordinaryMockIsNotFlaggedAsSpy() {
+        String node = start("notSpy");
+        MockitoHook.ensureInstalledOnCurrentThread();
+
+        Mockito.mock(Runnable.class);
+
+        assertEquals(0, tracker.mockKinds(node) & TestNodeTracker.SPY);
     }
 
     @Test

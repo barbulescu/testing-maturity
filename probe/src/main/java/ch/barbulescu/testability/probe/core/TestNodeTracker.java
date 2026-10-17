@@ -26,6 +26,7 @@ public final class TestNodeTracker {
     public static final int STATIC_MOCK = 1;
     public static final int DEEP_STUBS = 2;
     public static final int LENIENT = 4;
+    public static final int SPY = 8;
 
     private static final TestNodeTracker INSTANCE = new TestNodeTracker();
 
@@ -35,6 +36,7 @@ public final class TestNodeTracker {
     private final Map<String, AtomicInteger> mockKindsByNode = new ConcurrentHashMap<>();
     private final Set<String> springClasses = ConcurrentHashMap.newKeySet();
     private final Set<String> springClassesDeclaringMocks = ConcurrentHashMap.newKeySet();
+    private final Set<String> springClassesDeclaringSpies = ConcurrentHashMap.newKeySet();
 
     TestNodeTracker() {
     }
@@ -77,10 +79,14 @@ public final class TestNodeTracker {
         }
     }
 
-    public void springTestClass(String className, boolean declaresMockBeans) {
+    /** {@code declaresMockBeans} includes spy beans; {@code declaresSpyBeans} is that subset. */
+    public void springTestClass(String className, boolean declaresMockBeans, boolean declaresSpyBeans) {
         springClasses.add(className);
         if (declaresMockBeans) {
             springClassesDeclaringMocks.add(className);
+        }
+        if (declaresSpyBeans) {
+            springClassesDeclaringSpies.add(className);
         }
     }
 
@@ -104,7 +110,8 @@ public final class TestNodeTracker {
 
     /** The kind flags of every mock created by this node or any of its ancestors. */
     public int mockKinds(String id) {
-        int kinds = 0;
+        String className = classNameOf.get(id);
+        int kinds = className != null && springClassesDeclaringSpies.contains(className) ? SPY : 0;
         for (String node = id; node != null; node = parentOf.get(node)) {
             AtomicInteger nodeKinds = mockKindsByNode.get(node);
             if (nodeKinds != null) {

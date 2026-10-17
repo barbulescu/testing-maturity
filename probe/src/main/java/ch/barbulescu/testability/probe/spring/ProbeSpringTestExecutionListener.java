@@ -31,7 +31,8 @@ public final class ProbeSpringTestExecutionListener extends AbstractTestExecutio
             // Declared mock/spy beans count even when the context came from the cache, i.e. when
             // no mock was created while this class ran.
             TestNodeTracker.getInstance().springTestClass(
-                    testContext.getTestClass().getName(), facts.mockBeanFields + facts.spyBeanFields > 0);
+                    testContext.getTestClass().getName(), facts.mockBeanFields + facts.spyBeanFields > 0,
+                    facts.spyBeanFields > 0);
         });
     }
 

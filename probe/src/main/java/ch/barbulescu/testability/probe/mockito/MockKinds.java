@@ -21,6 +21,9 @@ final class MockKinds {
         if (isLenient(settings)) {
             kinds |= TestNodeTracker.LENIENT;
         }
+        if (settings.getSpiedInstance() != null || settings.getDefaultAnswer() == Answers.CALLS_REAL_METHODS) {
+            kinds |= TestNodeTracker.SPY;
+        }
         return kinds;
     }
 

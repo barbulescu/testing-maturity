@@ -86,7 +86,7 @@ class TestNodeTrackerTest {
 
     @Test
     void springClassIsRecognizedByNameIncludingDynamicChildren() {
-        tracker.springTestClass("A", false);
+        tracker.springTestClass("A", false, false);
         tracker.nodeStarted(ENGINE, null, null);
         tracker.nodeStarted(CLASS_A, ENGINE, "A");
         tracker.nodeStarted(CLASS_A + "/[test-factory:f()]", CLASS_A, "A");
@@ -98,7 +98,7 @@ class TestNodeTrackerTest {
 
     @Test
     void springClassDeclaringMockBeansUsesMocksEvenWithoutCreatingAny() {
-        tracker.springTestClass("A", true);
+        tracker.springTestClass("A", true, false);
         tracker.nodeStarted(ENGINE, null, null);
         tracker.nodeStarted(CLASS_A, ENGINE, "A");
         tracker.nodeStarted(CLASS_A + "/[method:one()]", CLASS_A, "A");
@@ -108,8 +108,18 @@ class TestNodeTrackerTest {
     }
 
     @Test
+    void springClassDeclaringSpyBeansUsesSpiesEvenWithoutCreatingAny() {
+        tracker.springTestClass("A", true, true);
+        tracker.nodeStarted(ENGINE, null, null);
+        tracker.nodeStarted(CLASS_A, ENGINE, "A");
+        tracker.nodeStarted(CLASS_A + "/[method:one()]", CLASS_A, "A");
+
+        assertEquals(TestNodeTracker.SPY, tracker.mockKinds(CLASS_A + "/[method:one()]"));
+    }
+
+    @Test
     void plainTestIsNotSpring() {
-        tracker.springTestClass("A", true);
+        tracker.springTestClass("A", true, false);
         tracker.nodeStarted(ENGINE, null, null);
         tracker.nodeStarted(CLASS_B, ENGINE, "B");
         tracker.nodeStarted(CLASS_B + "/[method:one()]", CLASS_B, "B");
