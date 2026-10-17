@@ -254,7 +254,7 @@ Requirements: JDK 21 (Gradle toolchains can download it). The harness also needs
 ./gradlew :harness:test --tests '*ParallelForks*'   # a single example
 ```
 
-The first harness run downloads the images and all dependencies of each example, so it is slow. In a corporate network, point the images at your private registry, for example through Testcontainers image substitution. Mirror dependency downloads through Nexus by mounting a `settings.xml` or `init.gradle`, and keep the caches between runs.
+The first harness run downloads the images and all dependencies of each example, so it is slow. The examples' containers share one dependency cache in `build/harness-cache` (Gradle, the Maven repository and the Maven wrapper's distributions), so later runs only download what changed. The probe is removed from that cache at the start of each run, so a stale snapshot is never used. In a corporate network, point the images at your private registry, for example through Testcontainers image substitution. Mirror dependency downloads through Nexus by mounting a `settings.xml` or `init.gradle`, and keep the caches between runs.
 
 JaCoCo reports for the probe and the classifier are written to `<module>/build/reports/jacoco/test/` as HTML, XML and CSV. They cover unit tests only. Probe code that runs inside the example containers is not measured.
 
@@ -268,7 +268,7 @@ JaCoCo reports for the probe and the classifier are written to `<module>/build/r
 | Example `<TestClass>` | One job per harness test class, in parallel: `./gradlew :harness:test --tests <TestClass>`. A new example is picked up when its `*Test.java` is added to the harness |
 | Coverage badge | Only on pushes to `main`. Generates instruction and branch coverage badges from the JaCoCo CSV reports, pushes them to the `badges` branch, and shows the percentages in the run summary |
 
-When a job fails, its Gradle test report is uploaded as an artifact. The badges at the top of this README show the CI status of `main` and the SVGs from the `badges` branch.
+Each example job keeps its `build/harness-cache` in the GitHub Actions cache, keyed by the example's test class and the examples' build files. Without it, every job downloads all dependencies from Maven Central at the same time, which gets rate limited (HTTP 429). When a job fails, its Gradle test report is uploaded as an artifact. The badges at the top of this README show the CI status of `main` and the SVGs from the `badges` branch.
 
 ## Not in scope (yet)
 

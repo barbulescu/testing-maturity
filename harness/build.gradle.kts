@@ -35,6 +35,11 @@ tasks.test {
     systemProperty("testability.harness.probeGroupId", project.group.toString())
     systemProperty("testability.harness.probeArtifactId", "testability-probe")
     systemProperty("testability.harness.probeVersion", project.version.toString())
+    // Dependencies the examples download, shared between their containers. CI caches it.
+    systemProperty(
+        "testability.harness.cacheDir",
+        rootProject.layout.buildDirectory.dir("harness-cache").get().asFile.absolutePath
+    )
 
     // Podman machine forwards a Docker-API-compatible socket to
     // /var/run/docker.sock on the host, which is Testcontainers' default -

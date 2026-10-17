@@ -74,9 +74,31 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
+      # Dependencies the example's containers download, kept between runs so 18 parallel
+      # jobs don't all fetch them from Maven Central at once (which gets rate limited).
+      - uses: actions/cache@v4
+        with:
+          path: |
+            build/harness-cache/gradle/caches/modules-2
+            build/harness-cache/m2/repository
+            build/harness-cache/m2/wrapper
+          key: harness-${{ matrix.example }}-${{ hashFiles('examples/**/*.gradle.kts', 'examples/**/pom.xml', 'examples/**/maven-wrapper.properties') }}
+          restore-keys: harness-${{ matrix.example }}-
+
       # Publishes the probe to build/probe-repo, then builds the example in a container
       # (Docker on the runner) with and without the probe.
       - run: ./gradlew :harness:test --tests "ch.barbulescu.testability.harness.${{ matrix.example }}"
+
+      # The containers write the cache as root. Hand it back to the runner so the cache can
+      # be saved, and drop the probe, which must never be restored from a cache.
+      - name: Prepare dependency cache for saving
+        if: always()
+        run: |
+          if [ -d build/harness-cache ]; then
+            sudo chown -R "$(id -u):$(id -g)" build/harness-cache
+            rm -rf build/harness-cache/m2/repository/ch/barbulescu
+            find build/harness-cache/gradle/caches/modules-2 -name '*.lock' -delete 2>/dev/null || true
+          fi
 
       - if: failure()
         uses: actions/upload-artifact@v4
