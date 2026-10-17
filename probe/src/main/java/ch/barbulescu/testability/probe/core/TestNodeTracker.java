@@ -33,10 +33,15 @@ public final class TestNodeTracker {
     private final ThreadLocal<Deque<String>> running = ThreadLocal.withInitial(ArrayDeque::new);
     private final Map<String, String> parentOf = new ConcurrentHashMap<>();
     private final Map<String, String> classNameOf = new ConcurrentHashMap<>();
-    private final Map<String, AtomicInteger> mockKindsByNode = new ConcurrentHashMap<>();
+    private final Map<String, NodeMocks> mocksByNode = new ConcurrentHashMap<>();
     private final Set<String> springClasses = ConcurrentHashMap.newKeySet();
-    private final Set<String> springClassesDeclaringMocks = ConcurrentHashMap.newKeySet();
+    private final Map<String, Integer> mockBeansBySpringClass = new ConcurrentHashMap<>();
     private final Set<String> springClassesDeclaringSpies = ConcurrentHashMap.newKeySet();
+
+    private static final class NodeMocks {
+        final AtomicInteger count = new AtomicInteger();
+        final AtomicInteger kinds = new AtomicInteger();
+    }
 
     TestNodeTracker() {
     }
@@ -67,25 +72,32 @@ public final class TestNodeTracker {
      * otherwise count against every test of the engine.
      */
     public void mockCreatedOnCurrentThread() {
-        mockCreatedOnCurrentThread(0);
+        mockCreatedOnCurrentThread(0, true);
     }
 
-    /** {@code kinds} is a combination of the kind flags above, or 0 for an ordinary mock. */
-    public void mockCreatedOnCurrentThread(int kinds) {
+    /**
+     * {@code kinds} is a combination of the kind flags above, or 0 for an ordinary mock.
+     * {@code countsAsMock} is false for mocks the test didn't ask for itself, such as the
+     * nested mocks deep stubs create along a call chain: they set flags but aren't counted.
+     */
+    public void mockCreatedOnCurrentThread(int kinds, boolean countsAsMock) {
         String current = running.get().peek();
         if (current != null && parentOf.containsKey(current)) {
-            AtomicInteger nodeKinds = mockKindsByNode.computeIfAbsent(current, key -> new AtomicInteger());
-            nodeKinds.accumulateAndGet(kinds, (a, b) -> a | b);
+            NodeMocks mocks = mocksByNode.computeIfAbsent(current, key -> new NodeMocks());
+            mocks.kinds.accumulateAndGet(kinds, (a, b) -> a | b);
+            if (countsAsMock) {
+                mocks.count.incrementAndGet();
+            }
         }
     }
 
-    /** {@code declaresMockBeans} includes spy beans; {@code declaresSpyBeans} is that subset. */
-    public void springTestClass(String className, boolean declaresMockBeans, boolean declaresSpyBeans) {
+    /** Declared {@code @MockBean}/{@code @MockitoBean} and spy bean fields, counted separately. */
+    public void springTestClass(String className, int mockBeanFields, int spyBeanFields) {
         springClasses.add(className);
-        if (declaresMockBeans) {
-            springClassesDeclaringMocks.add(className);
+        if (mockBeanFields + spyBeanFields > 0) {
+            mockBeansBySpringClass.put(className, mockBeanFields + spyBeanFields);
         }
-        if (declaresSpyBeans) {
+        if (spyBeanFields > 0) {
             springClassesDeclaringSpies.add(className);
         }
     }
@@ -97,15 +109,32 @@ public final class TestNodeTracker {
 
     public boolean usesMocks(String id) {
         String className = classNameOf.get(id);
-        if (className != null && springClassesDeclaringMocks.contains(className)) {
+        if (className != null && mockBeansBySpringClass.containsKey(className)) {
             return true;
         }
         for (String node = id; node != null; node = parentOf.get(node)) {
-            if (mockKindsByNode.containsKey(node)) {
+            if (mocksByNode.containsKey(node)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Mocks created by this node and its ancestors. A Spring test class counts at least its
+     * declared mock beans, since a context from the cache creates none while the test runs.
+     */
+    public int mockCount(String id) {
+        int count = 0;
+        for (String node = id; node != null; node = parentOf.get(node)) {
+            NodeMocks mocks = mocksByNode.get(node);
+            if (mocks != null) {
+                count += mocks.count.get();
+            }
+        }
+        String className = classNameOf.get(id);
+        Integer declared = className != null ? mockBeansBySpringClass.get(className) : null;
+        return declared != null ? Math.max(count, declared) : count;
     }
 
     /** The kind flags of every mock created by this node or any of its ancestors. */
@@ -113,9 +142,9 @@ public final class TestNodeTracker {
         String className = classNameOf.get(id);
         int kinds = className != null && springClassesDeclaringSpies.contains(className) ? SPY : 0;
         for (String node = id; node != null; node = parentOf.get(node)) {
-            AtomicInteger nodeKinds = mockKindsByNode.get(node);
-            if (nodeKinds != null) {
-                kinds |= nodeKinds.get();
+            NodeMocks mocks = mocksByNode.get(node);
+            if (mocks != null) {
+                kinds |= mocks.kinds.get();
             }
         }
         return kinds;

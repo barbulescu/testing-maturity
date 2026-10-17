@@ -104,6 +104,8 @@ The same attribution also counts tests that use mocks known as test smells:
 | `testsUsingLenientMocks` | create a lenient mock, which hides unused stubbing | The mock's strictness (`getStrictness()` since Mockito 4.6, `isLenient()` before). Leniency set per stubbing with `lenient().when(...)` or for a whole class with `@MockitoSettings` is not on the mock and isn't seen |
 | `testsUsingSpies` | spy on a real object or create a partial mock, which mixes the object under test with stubs | A spied instance or `CALLS_REAL_METHODS` as the default answer, or a Spring test class declaring `@SpyBean`/`@MockitoSpyBean` fields |
 
+`testsByMockCount` sorts the tests that used mocks by how many they used, and `maxMocksPerTest` is the highest count. Many mocks in one test usually means it knows too much about how the code is wired. A test's count includes mocks created at class level, and a Spring test counts at least the mock and spy beans its class declares. The nested mocks that deep stubs create along a call chain are not counted.
+
 ### Guarantees
 
 - **The probe never breaks the build.** Every entry point runs through `Safe.run`, which catches any `Throwable` and records its type in `probeErrors`. Each report field is computed on its own, so one bad value (for example a malformed environment variable) leaves that field empty and the rest of the report is still written. If writing the report fails, the build still succeeds.
@@ -139,7 +141,9 @@ The same attribution also counts tests that use mocks known as test smells:
   "mocking": { "mockitoObserved": true, "plainTests": 25, "plainTestsUsingMocks": 9,
                "springTests": 16, "springTestsUsingMocks": 11,
                "testsUsingStaticMocks": 2, "testsUsingDeepStubs": 1,
-               "testsUsingLenientMocks": 3, "testsUsingSpies": 4 },
+               "testsUsingLenientMocks": 3, "testsUsingSpies": 4,
+               "testsByMockCount": { "1": 9, "2-3": 6, "4-5": 3, "6-9": 1, "10+": 0 },
+               "maxMocksPerTest": 7 },
   "bootStarts": { "succeeded": 2, "failed": 1, "maxDurationMs": 9400,
                   "failureRootCauses": ["java.net.UnknownHostException"] },
   "probeErrors": []
@@ -205,7 +209,7 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java17-context-fails` | Spring context fails to load; root-cause type captured, no message leaked |
 | `gradle-java17-plain-spring-contexts` | Spring without Boot: three test classes over two configurations give two plain contexts |
 | `gradle-java17-mocking` | Mock usage counted per test and split between plain and Spring tests: `@Mock` via `MockitoExtension`, an inline mock in one of two methods, a field initializer, `@MockitoBean` |
-| `gradle-java17-mock-smells` | Mockito smells counted per test, each next to a test without it: static mocking, deep stubs, lenient mocks, spies |
+| `gradle-java17-mock-smells` | Mockito smells counted per test, each next to a test without it: static mocking, deep stubs, lenient mocks, spies, and a test with six mocks |
 | `gradle-java17-mock-everything` | `@MockBean` fields counted on a `@SpringBootTest` that doesn't test any real code |
 | `gradle-java17-disabled-tests` | `@Disabled` on a method, a class and a nested class, disabled parameterized and repeated tests, Vintage `@Ignore` on a method and a class, and a failing assumption: all disabled tests counted as skipped |
 | `gradle-java17-custom-listeners` | `@TestExecutionListeners` replaces the defaults: `spring` section absent, `tests` section present |

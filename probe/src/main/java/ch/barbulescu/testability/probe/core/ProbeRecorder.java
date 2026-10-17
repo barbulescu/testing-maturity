@@ -52,6 +52,11 @@ public final class ProbeRecorder {
     private final AtomicInteger testsUsingDeepStubs = new AtomicInteger();
     private final AtomicInteger testsUsingLenientMocks = new AtomicInteger();
     private final AtomicInteger testsUsingSpies = new AtomicInteger();
+    // Tests by how many mocks they used; a test without mocks isn't in any bucket.
+    private static final int[] MOCK_COUNT_BUCKET_MINIMUMS = {1, 2, 4, 6, 10};
+    private static final String[] MOCK_COUNT_BUCKET_NAMES = {"1", "2-3", "4-5", "6-9", "10+"};
+    private final AtomicInteger[] testsByMockCount = newCounters(MOCK_COUNT_BUCKET_NAMES.length);
+    private final AtomicInteger maxMocksPerTest = new AtomicInteger();
 
     // Spring Boot application-start adapter
     private final AtomicBoolean bootStartsAdapterUsed = new AtomicBoolean(false);
@@ -120,7 +125,14 @@ public final class ProbeRecorder {
      * Only tests that actually ran; skipped tests never reach this. {@code mockKinds}
      * combines {@link TestNodeTracker}'s kind flags.
      */
-    public void recordTestMockUsage(boolean springTest, boolean usesMocks, int mockKinds) {
+    public void recordTestMockUsage(boolean springTest, boolean usesMocks, int mockKinds, int mockCount) {
+        for (int i = MOCK_COUNT_BUCKET_MINIMUMS.length - 1; i >= 0; i--) {
+            if (mockCount >= MOCK_COUNT_BUCKET_MINIMUMS[i]) {
+                testsByMockCount[i].incrementAndGet();
+                break;
+            }
+        }
+        maxMocksPerTest.accumulateAndGet(mockCount, Math::max);
         if ((mockKinds & TestNodeTracker.STATIC_MOCK) != 0) {
             testsUsingStaticMocks.incrementAndGet();
         }
@@ -217,6 +229,14 @@ public final class ProbeRecorder {
         }
     }
 
+    private static AtomicInteger[] newCounters(int size) {
+        AtomicInteger[] counters = new AtomicInteger[size];
+        for (int i = 0; i < size; i++) {
+            counters[i] = new AtomicInteger();
+        }
+        return counters;
+    }
+
     private AtomicInteger countFor(String engineId) {
         return testsByEngine.computeIfAbsent(engineId, key -> new AtomicInteger());
     }
@@ -306,6 +326,12 @@ public final class ProbeRecorder {
             writer.name("testsUsingDeepStubs").value(testsUsingDeepStubs.get());
             writer.name("testsUsingLenientMocks").value(testsUsingLenientMocks.get());
             writer.name("testsUsingSpies").value(testsUsingSpies.get());
+            writer.name("testsByMockCount").beginObject();
+            for (int i = 0; i < MOCK_COUNT_BUCKET_NAMES.length; i++) {
+                writer.name(MOCK_COUNT_BUCKET_NAMES[i]).value(testsByMockCount[i].get());
+            }
+            writer.endObject();
+            writer.name("maxMocksPerTest").value(maxMocksPerTest.get());
             writer.endObject();
         }
 

@@ -48,7 +48,13 @@ final class MockKinds {
         }
     }
 
-    /** The enum constant for mocks a test creates; the internal class for the nested mocks of a chain. */
+    /** A mock the test created itself has the enum constant; the nested mocks of a chain have the internal class. */
+    static boolean isDeepStubsChild(MockCreationSettings<?> settings) {
+        Answer<?> answer = settings.getDefaultAnswer();
+        return answer != null && answer != Answers.RETURNS_DEEP_STUBS
+                && answer.getClass().getName().startsWith(DEEP_STUBS_ANSWER_PREFIX);
+    }
+
     private static boolean isDeepStubs(Answer<?> answer) {
         return answer == Answers.RETURNS_DEEP_STUBS
                 || answer != null && answer.getClass().getName().startsWith(DEEP_STUBS_ANSWER_PREFIX);

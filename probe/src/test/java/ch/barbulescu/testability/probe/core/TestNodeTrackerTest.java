@@ -48,7 +48,7 @@ class TestNodeTrackerTest {
     void mockKindsCombineAcrossTheTestAndItsAncestors() {
         tracker.nodeStarted(ENGINE, null, null);
         tracker.nodeStarted(CLASS_A, ENGINE, "A");
-        tracker.mockCreatedOnCurrentThread(TestNodeTracker.STATIC_MOCK);
+        tracker.mockCreatedOnCurrentThread(TestNodeTracker.STATIC_MOCK, true);
         tracker.nodeStarted(CLASS_A + "/[method:one()]", CLASS_A, "A");
         tracker.mockCreatedOnCurrentThread();
         tracker.nodeFinished(CLASS_A + "/[method:one()]");
@@ -59,6 +59,29 @@ class TestNodeTrackerTest {
 
         assertEquals(TestNodeTracker.STATIC_MOCK, tracker.mockKinds(CLASS_A + "/[method:one()]"));
         assertEquals(0, tracker.mockKinds(CLASS_B + "/[method:one()]"));
+    }
+
+    @Test
+    void mockCountAddsTheTestAndItsAncestorsButSkipsUncountedMocks() {
+        tracker.nodeStarted(ENGINE, null, null);
+        tracker.nodeStarted(CLASS_A, ENGINE, "A");
+        tracker.mockCreatedOnCurrentThread();
+        tracker.nodeStarted(CLASS_A + "/[method:one()]", CLASS_A, "A");
+        tracker.mockCreatedOnCurrentThread();
+        tracker.mockCreatedOnCurrentThread(TestNodeTracker.DEEP_STUBS, true);
+        tracker.mockCreatedOnCurrentThread(TestNodeTracker.DEEP_STUBS, false);
+
+        assertEquals(3, tracker.mockCount(CLASS_A + "/[method:one()]"));
+    }
+
+    @Test
+    void springClassCountsAtLeastItsDeclaredMockBeans() {
+        tracker.springTestClass("A", 2, 1);
+        tracker.nodeStarted(ENGINE, null, null);
+        tracker.nodeStarted(CLASS_A, ENGINE, "A");
+        tracker.nodeStarted(CLASS_A + "/[method:one()]", CLASS_A, "A");
+
+        assertEquals(3, tracker.mockCount(CLASS_A + "/[method:one()]"));
     }
 
     @Test
@@ -86,7 +109,7 @@ class TestNodeTrackerTest {
 
     @Test
     void springClassIsRecognizedByNameIncludingDynamicChildren() {
-        tracker.springTestClass("A", false, false);
+        tracker.springTestClass("A", 0, 0);
         tracker.nodeStarted(ENGINE, null, null);
         tracker.nodeStarted(CLASS_A, ENGINE, "A");
         tracker.nodeStarted(CLASS_A + "/[test-factory:f()]", CLASS_A, "A");
@@ -98,7 +121,7 @@ class TestNodeTrackerTest {
 
     @Test
     void springClassDeclaringMockBeansUsesMocksEvenWithoutCreatingAny() {
-        tracker.springTestClass("A", true, false);
+        tracker.springTestClass("A", 2, 0);
         tracker.nodeStarted(ENGINE, null, null);
         tracker.nodeStarted(CLASS_A, ENGINE, "A");
         tracker.nodeStarted(CLASS_A + "/[method:one()]", CLASS_A, "A");
@@ -109,7 +132,7 @@ class TestNodeTrackerTest {
 
     @Test
     void springClassDeclaringSpyBeansUsesSpiesEvenWithoutCreatingAny() {
-        tracker.springTestClass("A", true, true);
+        tracker.springTestClass("A", 0, 1);
         tracker.nodeStarted(ENGINE, null, null);
         tracker.nodeStarted(CLASS_A, ENGINE, "A");
         tracker.nodeStarted(CLASS_A + "/[method:one()]", CLASS_A, "A");
@@ -119,7 +142,7 @@ class TestNodeTrackerTest {
 
     @Test
     void plainTestIsNotSpring() {
-        tracker.springTestClass("A", true, false);
+        tracker.springTestClass("A", 2, 0);
         tracker.nodeStarted(ENGINE, null, null);
         tracker.nodeStarted(CLASS_B, ENGINE, "B");
         tracker.nodeStarted(CLASS_B + "/[method:one()]", CLASS_B, "B");

@@ -10,12 +10,13 @@ final class ProbeMockCreationListener implements MockCreationListener {
 
     @Override
     public void onMockCreated(Object mock, MockCreationSettings settings) {
-        Safe.run(() -> TestNodeTracker.getInstance().mockCreatedOnCurrentThread(MockKinds.of(settings)));
+        Safe.run(() -> TestNodeTracker.getInstance().mockCreatedOnCurrentThread(
+                MockKinds.of(settings), !MockKinds.isDeepStubsChild(settings)));
     }
 
     // Deliberately no @Override: Mockito only declares this (as a default method) since 3.5,
     // and the probe compiles against 2.1. On newer versions it overrides and counts mockStatic().
     public void onStaticMockCreated(Class<?> mock, MockCreationSettings settings) {
-        Safe.run(() -> TestNodeTracker.getInstance().mockCreatedOnCurrentThread(TestNodeTracker.STATIC_MOCK));
+        Safe.run(() -> TestNodeTracker.getInstance().mockCreatedOnCurrentThread(TestNodeTracker.STATIC_MOCK, true));
     }
 }

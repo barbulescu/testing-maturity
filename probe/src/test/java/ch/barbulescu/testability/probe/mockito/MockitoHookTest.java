@@ -108,6 +108,17 @@ class MockitoHookTest {
     }
 
     @Test
+    void nestedDeepStubMocksAreNotCounted() {
+        String node = start("deepStubsChain");
+        MockitoHook.ensureInstalledOnCurrentThread();
+
+        Thread thread = Mockito.mock(Thread.class, Mockito.RETURNS_DEEP_STUBS);
+        thread.getThreadGroup().getParent().getName();
+
+        assertEquals(1, tracker.mockCount(node));
+    }
+
+    @Test
     void ordinaryMockIsNotFlaggedAsDeepStubs() {
         String node = start("noDeepStubs");
         MockitoHook.ensureInstalledOnCurrentThread();
