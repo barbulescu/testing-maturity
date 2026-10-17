@@ -4,6 +4,7 @@ import org.junit.runner.RunWith;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -75,6 +76,35 @@ class SpringTestClassInspectorTest {
         assertEquals(1, facts.mockBeanFields);
     }
 
+    @DirtiesContext
+    static class DirtiesClassFixture {
+        @DirtiesContext
+        void dirtiesAfterThisMethod() {
+        }
+
+        void leavesTheContext() {
+        }
+    }
+
+    static class InheritsDirtiesContextFixture extends DirtiesClassFixture {
+    }
+
+    @org.junit.jupiter.api.Test
+    void detectsDirtiesContextOnClassAndMethods() {
+        SpringTestClassFacts facts = SpringTestClassInspector.inspect(DirtiesClassFixture.class);
+
+        assertTrue(facts.dirtiesContextClass);
+        assertEquals(1, facts.dirtiesContextMethods);
+    }
+
+    @org.junit.jupiter.api.Test
+    void detectsDirtiesContextInheritedFromBaseClass() {
+        SpringTestClassFacts facts = SpringTestClassInspector.inspect(InheritsDirtiesContextFixture.class);
+
+        assertTrue(facts.dirtiesContextClass);
+        assertEquals(1, facts.dirtiesContextMethods);
+    }
+
     static class PlainJUnit5Fixture {
     }
 
@@ -86,5 +116,7 @@ class SpringTestClassInspectorTest {
         assertFalse(facts.bootTest);
         assertFalse(facts.sliceTest);
         assertEquals(0, facts.mockBeanFields);
+        assertFalse(facts.dirtiesContextClass);
+        assertEquals(0, facts.dirtiesContextMethods);
     }
 }

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "buildTool": "GRADLE",
+  "tests": {
+    "succeeded": 4,
+    "failed": 0
+  },
+  "spring": {
+    "testClasses": 3,
+    "dirtiesContextClasses": 1,
+    "dirtiesContextMethods": 1
+  },
+  "probeErrors": []
+}

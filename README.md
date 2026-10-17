@@ -137,7 +137,8 @@ The same attribution also counts tests that use mocks known as test smells:
              "failed": 1, "skipped": 0, "durationMs": 18230 },
   "spring": { "testClasses": 12, "junit4Classes": 3, "bootTestClasses": 4,
               "sliceTestClasses": 5, "mockBeanFields": 17,
-              "contextsLoaded": 3, "plainContextsLoaded": 1 },
+              "contextsLoaded": 3, "plainContextsLoaded": 1,
+              "dirtiesContextClasses": 1, "dirtiesContextMethods": 2 },
   "mocking": { "mockitoObserved": true, "plainTests": 25, "plainTestsUsingMocks": 9,
                "springTests": 16, "springTestsUsingMocks": 11,
                "testsUsingStaticMocks": 2, "testsUsingDeepStubs": 1,
@@ -155,6 +156,7 @@ How to read it:
 - `onClasspath` shows which libraries are **present** on the classpath, not whether any test used them. The probe checks with `Class.forName(name, false, loader)`, so no class is initialized.
 - `tests`, `spring` and `bootStarts` are left out when their adapter never ran. A missing `spring` section means no Spring test listener fired. It does not mean there were zero Spring tests. For example, a custom `@TestExecutionListeners` can replace the default listeners, and then the probe's listener never runs.
 - `spring.contextsLoaded` counts distinct application contexts, not test classes. Test classes that share a context through Spring's context cache count it once. A context recreated after `@DirtiesContext` counts again, and every level of a `@ContextHierarchy` counts. `spring.plainContextsLoaded` is the subset that Spring Boot did not start, for example contexts from `@ContextConfiguration` or `@SpringJUnitConfig`. A context that fails to load is not counted here. With Boot, a failed load shows up in `bootStarts.failed`. Without Boot, it shows up only as failed tests.
+- `spring.dirtiesContextClasses` counts Spring test classes annotated `@DirtiesContext`, including through a base class, and `spring.dirtiesContextMethods` counts test methods annotated with it. Each one throws away a context that the following tests then have to rebuild, which is a common reason for a high `contextsLoaded`.
 - `mocking` appears whenever `tests` does. If `mockitoObserved` is `false`, Mockito was absent or older than 2.1, so a zero count tells you nothing. Only Mockito is detected; EasyMock, MockK and JMockit are not. Attribution is best effort:
   - A mock created on a thread other than the test's isn't counted.
   - Under parallel execution, work stealing can attribute a class-level mock to the wrong class.
@@ -210,6 +212,7 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java17-plain-spring-contexts` | Spring without Boot: three test classes over two configurations give two plain contexts |
 | `gradle-java17-mocking` | Mock usage counted per test and split between plain and Spring tests: `@Mock` via `MockitoExtension`, an inline mock in one of two methods, a field initializer, `@MockitoBean` |
 | `gradle-java17-mock-smells` | Mockito smells counted per test, each next to a test without it: static mocking, deep stubs, lenient mocks, spies, and a test with six mocks |
+| `gradle-java17-spring-smells` | Spring without Boot: `@DirtiesContext` on a class and on a method, next to a class without it |
 | `gradle-java17-mock-everything` | `@MockBean` fields counted on a `@SpringBootTest` that doesn't test any real code |
 | `gradle-java17-disabled-tests` | `@Disabled` on a method, a class and a nested class, disabled parameterized and repeated tests, Vintage `@Ignore` on a method and a class, and a failing assumption: all disabled tests counted as skipped |
 | `gradle-java17-custom-listeners` | `@TestExecutionListeners` replaces the defaults: `spring` section absent, `tests` section present |

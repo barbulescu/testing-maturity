@@ -42,6 +42,8 @@ public final class ProbeRecorder {
     private final AtomicInteger mockBeanFields = new AtomicInteger();
     private final AtomicInteger contextsLoaded = new AtomicInteger();
     private final AtomicInteger plainContextsLoaded = new AtomicInteger();
+    private final AtomicInteger dirtiesContextClasses = new AtomicInteger();
+    private final AtomicInteger dirtiesContextMethods = new AtomicInteger();
 
     // Mock usage per finished test, split by whether its class is a Spring test class
     private final AtomicInteger plainTests = new AtomicInteger();
@@ -158,7 +160,8 @@ public final class ProbeRecorder {
         }
     }
 
-    public void recordSpringTestClass(boolean isJUnit4, boolean isBootTest, boolean isSliceTest, int mockBeanFieldCount) {
+    public void recordSpringTestClass(boolean isJUnit4, boolean isBootTest, boolean isSliceTest, int mockBeanFieldCount,
+            boolean dirtiesContextClass, int dirtiesContextMethodCount) {
         springAdapterUsed.set(true);
         springTestClasses.incrementAndGet();
         if (isJUnit4) {
@@ -171,6 +174,10 @@ public final class ProbeRecorder {
             sliceTestClasses.incrementAndGet();
         }
         mockBeanFields.addAndGet(mockBeanFieldCount);
+        if (dirtiesContextClass) {
+            dirtiesContextClasses.incrementAndGet();
+        }
+        dirtiesContextMethods.addAndGet(dirtiesContextMethodCount);
     }
 
     /** Called once per distinct application context; plain means not started by Spring Boot. */
@@ -344,6 +351,8 @@ public final class ProbeRecorder {
             writer.name("mockBeanFields").value(mockBeanFields.get());
             writer.name("contextsLoaded").value(contextsLoaded.get());
             writer.name("plainContextsLoaded").value(plainContextsLoaded.get());
+            writer.name("dirtiesContextClasses").value(dirtiesContextClasses.get());
+            writer.name("dirtiesContextMethods").value(dirtiesContextMethods.get());
             writer.endObject();
         }
 

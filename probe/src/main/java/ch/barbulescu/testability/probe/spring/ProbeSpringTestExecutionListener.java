@@ -27,7 +27,8 @@ public final class ProbeSpringTestExecutionListener extends AbstractTestExecutio
             recorder.ensureShutdownHookRegistered();
 
             SpringTestClassFacts facts = SpringTestClassInspector.inspect(testContext.getTestClass());
-            recorder.recordSpringTestClass(facts.junit4, facts.bootTest, facts.sliceTest, facts.mockBeanFields);
+            recorder.recordSpringTestClass(facts.junit4, facts.bootTest, facts.sliceTest, facts.mockBeanFields,
+                    facts.dirtiesContextClass, facts.dirtiesContextMethods);
             // Declared mock/spy beans count even when the context came from the cache, i.e. when
             // no mock was created while this class ran.
             TestNodeTracker.getInstance().springTestClass(
