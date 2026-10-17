@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "buildTool": "GRADLE",
+  "tests": {
+    "byEngine": {
+      "junit-jupiter": 5,
+      "junit-vintage": 2
+    },
+    "succeeded": 7,
+    "failed": 0,
+    "fixedOrderClasses": 2
+  },
+  "probeErrors": []
+}

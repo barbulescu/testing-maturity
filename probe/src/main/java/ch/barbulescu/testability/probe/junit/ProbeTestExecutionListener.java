@@ -18,6 +18,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Registered via {@code META-INF/services}; self-activates on any JUnit
@@ -26,6 +27,7 @@ import java.util.Set;
 public final class ProbeTestExecutionListener implements TestExecutionListener {
 
     private volatile TestPlan testPlan;
+    private final Set<String> inspectedClasses = ConcurrentHashMap.newKeySet();
 
     @Override
     public void testPlanExecutionStarted(TestPlan testPlan) {
@@ -45,6 +47,38 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
                     testIdentifier.getUniqueId(), testIdentifier.getParentId().orElse(null), classNameOf(testIdentifier));
             MockitoHook.ensureInstalledOnCurrentThread();
         });
+        Safe.run(() -> inspectTestClass(testIdentifier));
+    }
+
+    /** Once per test class, when its container starts. */
+    private void inspectTestClass(TestIdentifier testIdentifier) {
+        TestSource source = testIdentifier.getSource().orElse(null);
+        if (!testIdentifier.isContainer() || !(source instanceof ClassSource)) {
+            return;
+        }
+        String className = ((ClassSource) source).getClassName();
+        if (!inspectedClasses.add(className)) {
+            return;
+        }
+        Class<?> testClass = loadClass(className);
+        if (testClass != null && FixedOrderDetector.hasFixedOrder(testClass)) {
+            ProbeRecorder.getInstance().recordFixedOrderClass();
+        }
+    }
+
+    private static Class<?> loadClass(String className) {
+        ClassLoader contextLoader = Thread.currentThread().getContextClassLoader();
+        for (ClassLoader loader : new ClassLoader[] {contextLoader, ProbeTestExecutionListener.class.getClassLoader()}) {
+            if (loader == null) {
+                continue;
+            }
+            try {
+                return Class.forName(className, false, loader);
+            } catch (ClassNotFoundException | LinkageError e) {
+                // try the next loader
+            }
+        }
+        return null;
     }
 
     @Override

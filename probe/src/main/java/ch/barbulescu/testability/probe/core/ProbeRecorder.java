@@ -32,6 +32,7 @@ public final class ProbeRecorder {
     private final AtomicInteger skipped = new AtomicInteger();
     private final AtomicLong startNanos = new AtomicLong(-1);
     private final AtomicLong durationMs = new AtomicLong();
+    private final AtomicInteger fixedOrderClasses = new AtomicInteger();
 
     // Spring test-class adapter
     private final AtomicBoolean springAdapterUsed = new AtomicBoolean(false);
@@ -158,6 +159,11 @@ public final class ProbeRecorder {
                 plainTestsUsingMocks.incrementAndGet();
             }
         }
+    }
+
+    /** A test class whose tests run in a fixed order, e.g. {@code @TestMethodOrder(OrderAnnotation.class)}. */
+    public void recordFixedOrderClass() {
+        fixedOrderClasses.incrementAndGet();
     }
 
     public void recordSpringTestClass(boolean isJUnit4, boolean isBootTest, boolean isSliceTest, int mockBeanFieldCount,
@@ -321,6 +327,7 @@ public final class ProbeRecorder {
             writer.name("failed").value(failed.get());
             writer.name("skipped").value(skipped.get());
             writer.name("durationMs").value(durationMs.get());
+            writer.name("fixedOrderClasses").value(fixedOrderClasses.get());
             writer.endObject();
 
             writer.name("mocking").beginObject();

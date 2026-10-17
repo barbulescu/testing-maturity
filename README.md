@@ -134,7 +134,8 @@ The same attribution also counts tests that use mocks known as test smells:
                    "wiremock": false, "mockito": true, "springBoot": true },
   "versions": { "springBoot": "2.7.18", "junitPlatform": "1.8.2" },
   "tests": { "byEngine": { "junit-jupiter": 41 }, "succeeded": 40,
-             "failed": 1, "skipped": 0, "durationMs": 18230 },
+             "failed": 1, "skipped": 0, "durationMs": 18230,
+             "fixedOrderClasses": 1 },
   "spring": { "testClasses": 12, "junit4Classes": 3, "bootTestClasses": 4,
               "sliceTestClasses": 5, "mockBeanFields": 17,
               "contextsLoaded": 3, "plainContextsLoaded": 1,
@@ -162,6 +163,7 @@ How to read it:
   - Under parallel execution, work stealing can attribute a class-level mock to the wrong class.
   - A mock defined in a `@TestConfiguration`, rather than as a field, counts only for the first test class that loads that context.
 - JUnit Platform's `ABORTED` status (for example a failing assumption) is counted under `failed`.
+- `tests.fixedOrderClasses` counts test classes that pin the order their tests run in, which usually means the tests depend on each other: `@TestMethodOrder` with any orderer except `MethodOrderer.Random`, or JUnit 4's `@FixMethodOrder(MethodSorters.NAME_ASCENDING)`. Each class is checked once, by annotation name, when its container starts.
 - `tests.skipped` counts disabled tests the way Gradle and Surefire do. JUnit reports a skipped container, such as a `@Disabled` or `@Ignore` class, without any events for its children, so the probe counts the tests below it from the test plan. A skipped `@ParameterizedTest`, `@RepeatedTest` or `@TestFactory` counts as one test, because its invocations only exist at run time. Tests disabled by commenting out the code or the annotation are invisible to the probe.
 - `ci.*` fields are `null` outside CI.
 - The field name `markers` is reserved for a possible future agent, so adding it won't require a new schema version.
@@ -215,6 +217,7 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java17-spring-smells` | Spring without Boot: `@DirtiesContext` on a class and on a method, next to a class without it |
 | `gradle-java17-mock-everything` | `@MockBean` fields counted on a `@SpringBootTest` that doesn't test any real code |
 | `gradle-java17-disabled-tests` | `@Disabled` on a method, a class and a nested class, disabled parameterized and repeated tests, Vintage `@Ignore` on a method and a class, and a failing assumption: all disabled tests counted as skipped |
+| `gradle-java17-junit-smells` | JUnit-level smells for Jupiter and Vintage: a fixed test order (`@TestMethodOrder`, `@FixMethodOrder`) next to random order and an independent test |
 | `gradle-java17-custom-listeners` | `@TestExecutionListeners` replaces the defaults: `spring` section absent, `tests` section present |
 | `maven-java17-forkcount0-multimodule` | Tests run inside the Maven JVM: one report per module, each with the correct `moduleDir` |
 | `gradle-java17-parallel-forks` | `maxParallelForks = 2`: two reports for the same module with different `workerId`s |
