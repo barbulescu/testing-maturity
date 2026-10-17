@@ -101,6 +101,7 @@ The same attribution also counts tests that use mocks known as test smells:
 |---|---|---|
 | `testsUsingStaticMocks` | mock a static method with `mockStatic` | Mockito's `onStaticMockCreated` callback (Mockito 3.5+) |
 | `testsUsingDeepStubs` | create a mock with `RETURNS_DEEP_STUBS`, which hides chains of calls through several objects | The mock's default answer |
+| `testsUsingLenientMocks` | create a lenient mock, which hides unused stubbing | The mock's strictness (`getStrictness()` since Mockito 4.6, `isLenient()` before). Leniency set per stubbing with `lenient().when(...)` or for a whole class with `@MockitoSettings` is not on the mock and isn't seen |
 
 ### Guarantees
 
@@ -136,7 +137,8 @@ The same attribution also counts tests that use mocks known as test smells:
               "contextsLoaded": 3, "plainContextsLoaded": 1 },
   "mocking": { "mockitoObserved": true, "plainTests": 25, "plainTestsUsingMocks": 9,
                "springTests": 16, "springTestsUsingMocks": 11,
-               "testsUsingStaticMocks": 2, "testsUsingDeepStubs": 1 },
+               "testsUsingStaticMocks": 2, "testsUsingDeepStubs": 1,
+               "testsUsingLenientMocks": 3 },
   "bootStarts": { "succeeded": 2, "failed": 1, "maxDurationMs": 9400,
                   "failureRootCauses": ["java.net.UnknownHostException"] },
   "probeErrors": []
@@ -202,7 +204,7 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java17-context-fails` | Spring context fails to load; root-cause type captured, no message leaked |
 | `gradle-java17-plain-spring-contexts` | Spring without Boot: three test classes over two configurations give two plain contexts |
 | `gradle-java17-mocking` | Mock usage counted per test and split between plain and Spring tests: `@Mock` via `MockitoExtension`, an inline mock in one of two methods, a field initializer, `@MockitoBean` |
-| `gradle-java17-mock-smells` | Mockito smells counted per test, each next to a test without it: static mocking, deep stubs |
+| `gradle-java17-mock-smells` | Mockito smells counted per test, each next to a test without it: static mocking, deep stubs, lenient mocks |
 | `gradle-java17-mock-everything` | `@MockBean` fields counted on a `@SpringBootTest` that doesn't test any real code |
 | `gradle-java17-disabled-tests` | `@Disabled` on a method, a class and a nested class, disabled parameterized and repeated tests, Vintage `@Ignore` on a method and a class, and a failing assumption: all disabled tests counted as skipped |
 | `gradle-java17-custom-listeners` | `@TestExecutionListeners` replaces the defaults: `spring` section absent, `tests` section present |

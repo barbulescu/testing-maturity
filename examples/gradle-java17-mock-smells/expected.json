@@ -2,15 +2,16 @@
   "schemaVersion": 1,
   "buildTool": "GRADLE",
   "tests": {
-    "succeeded": 4,
+    "succeeded": 6,
     "failed": 0
   },
   "mocking": {
     "mockitoObserved": true,
-    "plainTests": 4,
-    "plainTestsUsingMocks": 3,
+    "plainTests": 6,
+    "plainTestsUsingMocks": 5,
     "testsUsingStaticMocks": 1,
-    "testsUsingDeepStubs": 1
+    "testsUsingDeepStubs": 1,
+    "testsUsingLenientMocks": 1
   },
   "probeErrors": []
 }

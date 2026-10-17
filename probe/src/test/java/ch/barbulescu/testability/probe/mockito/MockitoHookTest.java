@@ -6,6 +6,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.mockito.quality.Strictness;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -93,6 +94,26 @@ class MockitoHookTest {
         Mockito.mock(Runnable.class);
 
         assertEquals(0, tracker.mockKinds(node) & TestNodeTracker.DEEP_STUBS);
+    }
+
+    @Test
+    void lenientMockIsFlagged() {
+        String node = start("lenient");
+        MockitoHook.ensureInstalledOnCurrentThread();
+
+        Mockito.mock(Runnable.class, Mockito.withSettings().strictness(Strictness.LENIENT));
+
+        assertEquals(TestNodeTracker.LENIENT, tracker.mockKinds(node) & TestNodeTracker.LENIENT);
+    }
+
+    @Test
+    void strictMockIsNotFlaggedAsLenient() {
+        String node = start("strict");
+        MockitoHook.ensureInstalledOnCurrentThread();
+
+        Mockito.mock(Runnable.class, Mockito.withSettings().strictness(Strictness.STRICT_STUBS));
+
+        assertEquals(0, tracker.mockKinds(node) & TestNodeTracker.LENIENT);
     }
 
     @Test

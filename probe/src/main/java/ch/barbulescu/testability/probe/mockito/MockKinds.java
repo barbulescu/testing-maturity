@@ -18,7 +18,31 @@ final class MockKinds {
         if (isDeepStubs(settings.getDefaultAnswer())) {
             kinds |= TestNodeTracker.DEEP_STUBS;
         }
+        if (isLenient(settings)) {
+            kinds |= TestNodeTracker.LENIENT;
+        }
         return kinds;
+    }
+
+    /**
+     * Mock-level leniency only. {@code getStrictness()} exists since Mockito 4.6 and
+     * {@code isLenient()} from 2.20 until it was deprecated; neither exists in 2.1, which
+     * this module compiles against, so both are called reflectively.
+     */
+    private static boolean isLenient(MockCreationSettings<?> settings) {
+        Object strictness = invoke(settings, "getStrictness");
+        if (strictness != null) {
+            return "LENIENT".equals(strictness.toString());
+        }
+        return Boolean.TRUE.equals(invoke(settings, "isLenient"));
+    }
+
+    private static Object invoke(Object target, String methodName) {
+        try {
+            return target.getClass().getMethod(methodName).invoke(target);
+        } catch (ReflectiveOperationException e) {
+            return null;
+        }
     }
 
     /** The enum constant for mocks a test creates; the internal class for the nested mocks of a chain. */

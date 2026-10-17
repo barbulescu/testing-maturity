@@ -50,6 +50,7 @@ public final class ProbeRecorder {
     private final AtomicInteger springTestsUsingMocks = new AtomicInteger();
     private final AtomicInteger testsUsingStaticMocks = new AtomicInteger();
     private final AtomicInteger testsUsingDeepStubs = new AtomicInteger();
+    private final AtomicInteger testsUsingLenientMocks = new AtomicInteger();
 
     // Spring Boot application-start adapter
     private final AtomicBoolean bootStartsAdapterUsed = new AtomicBoolean(false);
@@ -124,6 +125,9 @@ public final class ProbeRecorder {
         }
         if ((mockKinds & TestNodeTracker.DEEP_STUBS) != 0) {
             testsUsingDeepStubs.incrementAndGet();
+        }
+        if ((mockKinds & TestNodeTracker.LENIENT) != 0) {
+            testsUsingLenientMocks.incrementAndGet();
         }
         if (springTest) {
             springTests.incrementAndGet();
@@ -296,6 +300,7 @@ public final class ProbeRecorder {
             writer.name("springTestsUsingMocks").value(springTestsUsingMocks.get());
             writer.name("testsUsingStaticMocks").value(testsUsingStaticMocks.get());
             writer.name("testsUsingDeepStubs").value(testsUsingDeepStubs.get());
+            writer.name("testsUsingLenientMocks").value(testsUsingLenientMocks.get());
             writer.endObject();
         }
 
