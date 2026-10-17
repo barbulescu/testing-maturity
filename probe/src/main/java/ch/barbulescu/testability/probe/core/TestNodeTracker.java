@@ -24,6 +24,7 @@ public final class TestNodeTracker {
 
     /** Kinds of mock a test used, combined as bit flags. */
     public static final int STATIC_MOCK = 1;
+    public static final int DEEP_STUBS = 2;
 
     private static final TestNodeTracker INSTANCE = new TestNodeTracker();
 

@@ -10,7 +10,7 @@ final class ProbeMockCreationListener implements MockCreationListener {
 
     @Override
     public void onMockCreated(Object mock, MockCreationSettings settings) {
-        Safe.run(() -> TestNodeTracker.getInstance().mockCreatedOnCurrentThread());
+        Safe.run(() -> TestNodeTracker.getInstance().mockCreatedOnCurrentThread(MockKinds.of(settings)));
     }
 
     // Deliberately no @Override: Mockito only declares this (as a default method) since 3.5,

@@ -13,8 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Common Mockito smells in plain JUnit 5 tests, one test class per smell,
- * each next to a test without it: static mocking. Proves every smell is
- * counted per test that uses it.
+ * each next to a test without it. Proves every smell is counted per test
+ * that uses it, and only for those tests.
  */
 class GradleJava17MockSmellsTest {
 

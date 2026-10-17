@@ -76,6 +76,26 @@ class MockitoHookTest {
     }
 
     @Test
+    void deepStubsMockIsFlagged() {
+        String node = start("deepStubs");
+        MockitoHook.ensureInstalledOnCurrentThread();
+
+        Mockito.mock(Runnable.class, Mockito.RETURNS_DEEP_STUBS);
+
+        assertEquals(TestNodeTracker.DEEP_STUBS, tracker.mockKinds(node) & TestNodeTracker.DEEP_STUBS);
+    }
+
+    @Test
+    void ordinaryMockIsNotFlaggedAsDeepStubs() {
+        String node = start("noDeepStubs");
+        MockitoHook.ensureInstalledOnCurrentThread();
+
+        Mockito.mock(Runnable.class);
+
+        assertEquals(0, tracker.mockKinds(node) & TestNodeTracker.DEEP_STUBS);
+    }
+
+    @Test
     void nodeWithoutMocksIsNotMarked() {
         String node = start("nothing");
         MockitoHook.ensureInstalledOnCurrentThread();
