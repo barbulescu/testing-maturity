@@ -14,11 +14,15 @@ The probe registers itself through JUnit Platform and Spring. There is no Java a
 
 ## Repository layout
 
+The Gradle root project is named `testability-probe`.
+
 ```
-testability-probe/
+testing-maturity/
+├── .github/      # GitHub Actions CI workflow
 ├── probe/        # the shipped jar: Java 8 bytecode, no runtime dependencies
 │   └── src/main/java/ch/barbulescu/testability/probe/
-│       ├── core/    # recorder, JSON writer, CI context, module identity, file sink
+│       ├── core/    # recorder, Safe, JSON writer, file sink, CI context, module identity, build tool
+│       │            # and classpath detection, test-node tracking and the Mockito bridge
 │       ├── junit/   # JUnit Platform TestExecutionListener
 │       ├── mockito/ # Mockito MockCreationListener (loaded only when Mockito is present)
 │       └── spring/  # Spring TestExecutionListener + Boot ApplicationListener
@@ -96,7 +100,7 @@ The report counts how many tests used Mockito, split into plain tests and Spring
 - **The probe never breaks the build.** Every entry point runs through `Safe.run`, which catches any `Throwable` and records its type in `probeErrors`. Each report field is computed on its own, so one bad value (for example a malformed environment variable) leaves that field empty and the rest of the report is still written. If writing the report fails, the build still succeeds.
 - **Production guard.** `ProbeSpringApplicationListener` does nothing unless `org.springframework.test.context.TestContext` is on the classpath. If the jar ever ends up on a runtime classpath, it has no effect.
 - **One report per classloader, written once.** `ProbeRecorder` is a singleton per classloader and registers a shutdown hook the first time either adapter uses it. The hook writes the report. This matters for plain `SpringRunner` tests under Surefire's JUnit 4 provider: the JUnit Platform launcher never runs there, so the Spring adapter is the only one that fires.
-- **Java 8 bytecode, JDK-only core.** Enforced by `options.release = 8`, by ArchUnit rules (`core` may only import the JDK, `junit` only JUnit Platform, `spring` only Spring) and by `ClassFileVersionTest`.
+- **Java 8 bytecode, JDK-only core.** Enforced by `options.release = 8`, by ArchUnit rules (`core` may only import the JDK, `junit` only JUnit Platform, `mockito` only Mockito, `spring` only Spring) and by `ClassFileVersionTest`.
 
 ### Module identity
 
@@ -213,17 +217,31 @@ The container always exits with status 0. The build's real exit code and the rep
 
 ## Building and testing
 
-Requirements: JDK 21 (Gradle toolchains can download it). The harness also needs a Docker-compatible socket at `/var/run/docker.sock`, which Podman machine provides. The harness disables Ryuk.
+Requirements: JDK 21 (Gradle toolchains can download it). The harness also needs a Docker-compatible socket at `/var/run/docker.sock`, which Podman machine and GitHub's Ubuntu runners both provide. The harness disables Ryuk.
 
 ```bash
-./gradlew :probe:build          # unit tests, ArchUnit rules, Java 8 class-file check
+./gradlew :probe:build          # unit tests, ArchUnit rules, Java 8 class-file check, JaCoCo report
 ./gradlew :probe:publishMavenPublicationToProbeRepoRepository   # publishes to build/probe-repo
-./gradlew :classifier:test
+./gradlew :classifier:test      # also writes a JaCoCo report
 ./gradlew :harness:test         # publishes the probe first, then runs every example in containers
 ./gradlew :harness:test --tests '*ParallelForks*'   # a single example
 ```
 
 The first harness run downloads the images and all dependencies of each example, so it is slow. In a corporate network, point the images at your private registry, for example through Testcontainers image substitution. Mirror dependency downloads through Nexus by mounting a `settings.xml` or `init.gradle`, and keep the caches between runs.
+
+JaCoCo reports for the probe and the classifier are written to `<module>/build/reports/jacoco/test/` as HTML, XML and CSV. They cover unit tests only. Probe code that runs inside the example containers is not measured.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main`, on pull requests, and on demand:
+
+| Job | What it does |
+|---|---|
+| Build probe and classifier | `./gradlew :probe:build :classifier:test` on JDK 21, uploads the JaCoCo reports, and lists the harness test classes |
+| Example `<TestClass>` | One job per harness test class, in parallel: `./gradlew :harness:test --tests <TestClass>`. A new example is picked up when its `*Test.java` is added to the harness |
+| Coverage badge | Only on pushes to `main`. Generates instruction and branch coverage badges from the JaCoCo CSV reports, pushes them to the `badges` branch, and shows the percentages in the run summary |
+
+When a job fails, its Gradle test report is uploaded as an artifact. The badges at the top of this README show the CI status of `main` and the SVGs from the `badges` branch.
 
 ## Not in scope (yet)
 
