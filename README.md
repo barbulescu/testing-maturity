@@ -1,5 +1,9 @@
 # Testability Probe
 
+[![CI](https://github.com/barbulescu/testing-maturity/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/barbulescu/testing-maturity/actions/workflows/ci.yml?query=branch%3Amain)
+![Coverage](https://raw.githubusercontent.com/barbulescu/testing-maturity/badges/jacoco.svg)
+![Branches](https://raw.githubusercontent.com/barbulescu/testing-maturity/badges/branches.svg)
+
 A test-scoped dependency that records **facts** about how a JVM project's tests run and writes them as a JSON report. It never decides a maturity level itself. The rules that turn facts into levels live in one central place, so they can change without touching hundreds of builds.
 
 ```

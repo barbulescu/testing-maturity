@@ -40,6 +40,13 @@ jobs:
             | xargs -n1 basename | sed 's/\.java$//' | jq -R . | jq -sc .)
           echo "list=$list" >> "$GITHUB_OUTPUT"
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            probe/build/reports/jacoco/test/
+            classifier/build/reports/jacoco/test/
+
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -76,3 +83,56 @@ jobs:
         with:
           name: harness-report-${{ matrix.example }}
           path: harness/build/reports/tests/
+
+  # Publishes coverage badges (unit tests of probe and classifier) to the `badges` branch.
+  # Code the probe runs inside the example containers is not included.
+  coverage-badge:
+    name: Coverage badge
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage-reports
+          path: coverage
+
+      - id: jacoco
+        uses: cicirello/jacoco-badge-generator@v2
+        with:
+          jacoco-csv-file: >-
+            coverage/probe/build/reports/jacoco/test/jacocoTestReport.csv
+            coverage/classifier/build/reports/jacoco/test/jacocoTestReport.csv
+          badges-directory: badges
+          generate-branches-badge: true
+
+      - name: Coverage summary
+        run: |
+          echo "Instruction coverage: $(awk '{printf "%.1f%%", $1*100}' <<< '${{ steps.jacoco.outputs.coverage }}')" >> "$GITHUB_STEP_SUMMARY"
+          echo "Branch coverage: $(awk '{printf "%.1f%%", $1*100}' <<< '${{ steps.jacoco.outputs.branches }}')" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Push badges to the badges branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          git init -q publish
+          cd publish
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth 1 origin badges; then
+            git checkout -q -B badges FETCH_HEAD
+          else
+            git checkout -q --orphan badges
+          fi
+          cp ../badges/*.svg .
+          git add -- *.svg
+          if git diff --cached --quiet; then
+            echo "Badges unchanged"
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -qm "Update coverage badges for ${GITHUB_SHA::7}"
+          git push -q origin badges

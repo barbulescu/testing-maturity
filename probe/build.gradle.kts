@@ -1,5 +1,6 @@
 plugins {
     `java-library`
+    jacoco
 }
 
 java {
@@ -47,6 +48,15 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    reports {
+        xml.required = true
+        // The CI coverage badge is computed from the CSV report.
+        csv.required = true
+    }
 }
 
 tasks.named<Jar>("jar") {
