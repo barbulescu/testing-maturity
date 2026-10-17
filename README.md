@@ -189,7 +189,7 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 |---|---|
 | `maven-java8-boot21-springrunner` | Spring listener under `SpringRunner` with Surefire's JUnit 4 provider; Boot startup recorded |
 | `maven-java11-boot27-vintage` | Vintage and Jupiter tests mixed; counts split correctly by engine |
-| `gradle-java17-boot3-tc-wiremock` | Testcontainers and WireMock detected; `@Testcontainers(disabledWithoutDocker = true)` avoids needing Docker-in-Docker |
+| `gradle-java17-boot3-tc-wiremock` | Testcontainers and WireMock detected; `@Testcontainers(disabledWithoutDocker = true)` avoids needing Docker-in-Docker, so that class is skipped and its test counted as skipped |
 | `gradle-java21-boot4-junit6` | Binary compatibility with the newest stack |
 | `gradle-java17-context-fails` | Spring context fails to load; root-cause type captured, no message leaked |
 | `gradle-java17-plain-spring-contexts` | Spring without Boot: three test classes over two configurations give two plain contexts |
