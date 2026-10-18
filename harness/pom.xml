@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Runs every example in containers: mvn -pl harness -am verify
+  One example: add -Dtest=GradleJava17MockingTest -Dsurefire.failIfNoSpecifiedTests=false
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ch.barbulescu.testability</groupId>
+        <artifactId>testability-probe-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>harness</artifactId>
+
+    <properties>
+        <maven.install.skip>true</maven.install.skip>
+        <maven.deploy.skip>true</maven.deploy.skip>
+        <probeRepoDir>${rootDir}/target/probe-repo</probeRepoDir>
+        <!-- -DskipHarness builds and publishes everything but doesn't run the examples. -->
+        <skipHarness>false</skipHarness>
+    </properties>
+
+    <dependencies>
+        <!-- Builds the probe first without putting it on the harness's own classpath. -->
+        <dependency>
+            <groupId>ch.barbulescu.testability</groupId>
+            <artifactId>testability-probe</artifactId>
+            <version>${project.version}</version>
+            <type>pom</type>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.11.4</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>1.21.4</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.18.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ch.barbulescu.testability</groupId>
+            <artifactId>classifier</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <version>1.11.4</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Publishes the probe jar to target/probe-repo, which the examples' containers use as a
+                 Maven repository (Gradle: publishMavenPublicationToProbeRepoRepository). -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-probe</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>${project.groupId}</groupId>
+                                    <artifactId>testability-probe</artifactId>
+                                    <version>${project.version}</version>
+                                    <destFileName>testability-probe.jar</destFileName>
+                                </artifactItem>
+                            </artifactItems>
+                            <outputDirectory>${project.build.directory}/probe</outputDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>publish-probe</id>
+                        <phase>process-test-classes</phase>
+                        <goals>
+                            <goal>deploy-file</goal>
+                        </goals>
+                        <configuration>
+                            <file>${project.build.directory}/probe/testability-probe.jar</file>
+                            <url>file://${probeRepoDir}</url>
+                            <groupId>${project.groupId}</groupId>
+                            <artifactId>testability-probe</artifactId>
+                            <version>${project.version}</version>
+                            <packaging>jar</packaging>
+                            <!-- A flat POM without dependencies, like Gradle's publication. -->
+                            <generatePom>true</generatePom>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skipTests>${skipHarness}</skipTests>
+                    <systemPropertyVariables>
+                        <testability.harness.probeRepoDir>${probeRepoDir}</testability.harness.probeRepoDir>
+                        <testability.harness.examplesDir>${rootDir}/examples</testability.harness.examplesDir>
+                        <testability.harness.probeGroupId>${project.groupId}</testability.harness.probeGroupId>
+                        <testability.harness.probeArtifactId>testability-probe</testability.harness.probeArtifactId>
+                        <testability.harness.probeVersion>${project.version}</testability.harness.probeVersion>
+                        <!-- Dependencies the examples download, shared between their containers. -->
+                        <testability.harness.cacheDir>${rootDir}/target/harness-cache</testability.harness.cacheDir>
+                    </systemPropertyVariables>
+                    <environmentVariables>
+                        <!-- Ryuk doesn't reliably work against Podman; containers are closed explicitly. -->
+                        <TESTCONTAINERS_RYUK_DISABLED>true</TESTCONTAINERS_RYUK_DISABLED>
+                    </environmentVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

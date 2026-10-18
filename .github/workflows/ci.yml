@@ -55,6 +55,32 @@ jobs:
             probe/build/reports/tests/
             classifier/build/reports/tests/
 
+  # The Maven build must stay in sync with the Gradle build. The examples run only with Gradle.
+  maven:
+    name: Maven build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - run: python3 scripts/check-maven-sync.py
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
+      - run: ./mvnw -B verify -DskipHarness
+
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maven-test-reports
+          path: |
+            probe/tests/target/surefire-reports/
+            classifier/target/surefire-reports/
+
   examples:
     name: Example ${{ matrix.example }}
     needs: build

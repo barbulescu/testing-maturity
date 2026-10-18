@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The probe jar. Its tests are in probe/tests: Gradle compiles the probe against the oldest
+  supported JUnit Platform, Spring and Mockito (compileOnly) but runs its tests on current
+  versions, and one Maven module can't have two versions of the same library.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ch.barbulescu.testability</groupId>
+        <artifactId>testability-probe-parent</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>testability-probe</artifactId>
+
+    <properties>
+        <!-- Only production code is constrained to Java 8. -->
+        <maven.compiler.release>8</maven.compiler.release>
+        <!-- src/test/java is compiled and run by probe/tests. -->
+        <maven.test.skip>true</maven.test.skip>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <version>1.0.3</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Deliberately NOT spring-boot: the spring package must work across Boot major
+             versions, so anything Boot-specific is matched by name via reflection. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+            <version>5.0.20.RELEASE</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
+            <version>5.0.20.RELEASE</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Oldest version with the MockitoFramework listener API. -->
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>2.1.0</version>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <!-- Same content as Gradle's jar. The harness publishes it with a generated flat POM,
+                             which deploy-file would otherwise take from the jar (it names the parent POM). -->
+                        <addMavenDescriptor>false</addMavenDescriptor>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,7 +17,9 @@ class ClasspathPresenceTest {
         // junit:junit, mockito-core and spring-boot-test are real test dependencies of the
         // probe module itself, added for the spring package's own fixture-based tests.
         assertTrue(presence.get("junit4"));
-        assertFalse(presence.get("vintage"));
+        // Surefire adds the Vintage engine to the test classpath because junit:junit is there; Gradle doesn't.
+        boolean maven = "MAVEN".equals(System.getProperty("testability.probe.test.buildTool"));
+        assertEquals(maven, presence.get("vintage"));
         assertFalse(presence.get("testcontainers"));
         assertFalse(presence.get("wiremock"));
         assertTrue(presence.get("mockito"));

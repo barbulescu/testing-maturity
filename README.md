@@ -20,6 +20,7 @@ The Gradle root project is named `testability-probe`.
 testing-maturity/
 ├── .github/      # GitHub Actions CI workflow
 ├── probe/        # the shipped jar: Java 8 bytecode, no runtime dependencies
+│   ├── tests/pom.xml   # Maven only: runs the probe's tests (see "Building with Maven")
 │   └── src/main/java/ch/barbulescu/testability/probe/
 │       ├── core/    # recorder, Safe, JSON writer, file sink, CI context, module identity, build tool
 │       │            # and classpath detection, test-node tracking and the Mockito bridge
@@ -28,8 +29,11 @@ testing-maturity/
 │       └── spring/  # Spring TestExecutionListener + Boot ApplicationListener
 ├── classifier/   # reference CLI that turns a report into a level (not shipped with the probe)
 ├── harness/      # runs every example in a container, with and without the probe (not shipped)
-└── examples/     # standalone projects, one per scenario
+├── examples/     # standalone projects, one per scenario
+└── scripts/      # check-maven-sync.py: the Maven build must match the Gradle build
 ```
+
+The project builds with Gradle (`build.gradle.kts`, `./gradlew`) or Maven (`pom.xml`, `./mvnw`). Gradle is the main build and the one CI uses for the coverage badges and the examples.
 
 ## Using the probe
 
@@ -258,6 +262,27 @@ The first harness run downloads the images and all dependencies of each example,
 
 JaCoCo reports for the probe and the classifier are written to `<module>/build/reports/jacoco/test/` as HTML, XML and CSV. They cover unit tests only. Probe code that runs inside the example containers is not measured.
 
+### Building with Maven
+
+The Maven build mirrors the Gradle build: same coordinates, dependency versions, Java versions and tests. Requirements: JDK 21 or newer (the Maven build has no toolchain and uses the JDK it runs on).
+
+```bash
+./mvnw verify -pl '!harness'     # probe and classifier: unit tests, ArchUnit rules, JaCoCo reports
+./mvnw verify -DskipHarness      # also builds the harness and publishes the probe to target/probe-repo
+./mvnw verify                    # everything, including every example in containers
+./mvnw verify -pl harness -am -Dtest=GradleJava17MockingTest -Dsurefire.failIfNoSpecifiedTests=false   # a single example
+./mvnw -pl classifier compile exec:java -Dexec.args="/path/to/testability-probe-1.json"
+```
+
+Differences from Gradle:
+
+- **The probe has two modules.** Gradle compiles the probe against the oldest supported JUnit Platform (1.0.3), Spring (5.0) and Mockito (2.1) and runs its tests on current versions. One Maven module can't have two versions of the same library, so `probe/pom.xml` builds the jar (against the old versions, `provided`) and `probe/tests/pom.xml` runs `probe/src/test/java` against that jar. Built on JDK 21, the two builds produce the same class files.
+- **Output is in `target/`**: the probe repository in `target/probe-repo`, the examples' dependency cache in `target/harness-cache`, JaCoCo reports in `probe/tests/target/site/jacoco-aggregate/` and `classifier/target/site/jacoco/`.
+- **Surefire adds the JUnit Vintage engine** to the probe tests' classpath because `junit:junit` is on it. `ClasspathPresenceTest` and `BuildToolTest` read the build tool from a system property the Maven build sets.
+- **On JDKs newer than 21**, the probe tests set `-Dnet.bytebuddy.experimental=true` so Mockito 5.14 can still create mocks.
+
+`scripts/check-maven-sync.py` compares the two builds: coordinates, modules, external dependency versions, Java versions and the classifier's main class. CI runs it, so a change to one build must be made in the other too.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every push to `main`, on pull requests, and on demand:
@@ -266,6 +291,7 @@ JaCoCo reports for the probe and the classifier are written to `<module>/build/r
 |---|---|
 | Build probe and classifier | `./gradlew :probe:build :classifier:test` on JDK 21, uploads the JaCoCo reports, and lists the harness test classes |
 | Example `<TestClass>` | One job per harness test class, in parallel: `./gradlew :harness:test --tests <TestClass>`. A new example is picked up when its `*Test.java` is added to the harness |
+| Maven build | `scripts/check-maven-sync.py`, then `./mvnw verify -DskipHarness` on JDK 21: probe and classifier tests, and the harness build up to publishing the probe |
 | Coverage badge | Only on pushes to `main`. Generates instruction and branch coverage badges from the JaCoCo CSV reports, pushes them to the `badges` branch, and shows the percentages in the run summary |
 
 Each example job keeps its `build/harness-cache` in the GitHub Actions cache, keyed by the example's test class and the examples' build files. Without it, every job downloads all dependencies from Maven Central at the same time, which gets rate limited (HTTP 429). When a job fails, its Gradle test report is uploaded as an artifact. The badges at the top of this README show the CI status of `main` and the SVGs from the `badges` branch.

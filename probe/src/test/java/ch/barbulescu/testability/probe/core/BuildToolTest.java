@@ -17,9 +17,11 @@ class BuildToolTest {
     }
 
     @Test
-    void detectsGradleFromTheWorkerClassOnThisRealTestClasspath() {
-        // These tests genuinely run inside a forked Gradle test worker, so this exercises
-        // the real classpath-presence branch rather than the command-line fallback.
-        assertEquals("GRADLE", BuildTool.detect(null, getClass().getClassLoader()));
+    void detectsTheBuildToolFromTheWorkerClassOnThisRealTestClasspath() {
+        // These tests genuinely run inside a forked Gradle test worker or Surefire fork, so this
+        // exercises the real classpath-presence branch rather than the command-line fallback.
+        // The Maven build sets the property; Gradle doesn't.
+        String expected = System.getProperty("testability.probe.test.buildTool", "GRADLE");
+        assertEquals(expected, BuildTool.detect(null, getClass().getClassLoader()));
     }
 }
