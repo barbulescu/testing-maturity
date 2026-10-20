@@ -108,7 +108,17 @@ The same attribution also counts tests that use mocks known as test smells:
 | `testsUsingLenientMocks` | create a lenient mock, which hides unused stubbing | The mock's strictness (`getStrictness()` since Mockito 4.6, `isLenient()` before). Leniency set per stubbing with `lenient().when(...)` or for a whole class with `@MockitoSettings` is not on the mock and isn't seen |
 | `testsUsingSpies` | spy on a real object or create a partial mock, which mixes the object under test with stubs | A spied instance or `CALLS_REAL_METHODS` as the default answer, or a Spring test class declaring `@SpyBean`/`@MockitoSpyBean` fields |
 
-`testsByMockCount` sorts the tests that used mocks by how many they used, and `maxMocksPerTest` is the highest count. Many mocks in one test usually means it knows too much about how the code is wired. A test's count includes mocks created at class level, and a Spring test counts at least the mock and spy beans its class declares. The nested mocks that deep stubs create along a call chain are not counted.
+`testsByMockCount` sorts the tests that used mocks by how many they used, and `maxMocksPerTest` is the highest count. Many mocks in one test usually means it knows too much about how the code is wired. A test's count adds the mocks it created itself and those created at class level. The nested mocks that deep stubs create along a call chain are not counted.
+
+The two kinds of mocks are also counted apart, because they point at different problems:
+
+| Field | Counts |
+|---|---|
+| `testsByOwnMockCount` | Like `testsByMockCount`, but only the mocks each test created itself (in the method, `@BeforeEach`, `MockitoExtension` or a field initializer). Many of them means the test sets up a lot of collaborators |
+| `testsUsingOnlyClassLevelMocks` | Tests whose mocks all come from their class (`@BeforeAll`, static fields, a `PER_CLASS` instance, or the mock and spy beans of a Spring test class). Mocks shared between tests can carry stubbing and recorded calls from one test into the next |
+| `classesWithClassLevelMocks` | Test classes with at least one test that used class-level mocks |
+
+A Spring test's class-level count is at least the number of mock and spy beans its class declares, since a context from Spring's cache creates none while the test runs.
 
 ### Guarantees
 
@@ -151,7 +161,9 @@ The same attribution also counts tests that use mocks known as test smells:
                "testsUsingStaticMocks": 2, "testsUsingDeepStubs": 1,
                "testsUsingLenientMocks": 3, "testsUsingSpies": 4,
                "testsByMockCount": { "1": 9, "2-3": 6, "4-5": 3, "6-9": 1, "10+": 0 },
-               "maxMocksPerTest": 7 },
+               "maxMocksPerTest": 7,
+               "testsByOwnMockCount": { "1": 8, "2-3": 4, "4-5": 1, "6-9": 0, "10+": 0 },
+               "testsUsingOnlyClassLevelMocks": 6, "classesWithClassLevelMocks": 5 },
   "bootStarts": { "succeeded": 2, "failed": 1, "maxDurationMs": 9400,
                   "failureRootCauses": ["java.net.UnknownHostException"] },
   "probeErrors": []

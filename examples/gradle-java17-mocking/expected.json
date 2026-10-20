@@ -18,7 +18,16 @@
       "6-9": 0,
       "10+": 0
     },
-    "maxMocksPerTest": 3
+    "maxMocksPerTest": 3,
+    "testsByOwnMockCount": {
+      "1": 5,
+      "2-3": 1,
+      "4-5": 0,
+      "6-9": 0,
+      "10+": 0
+    },
+    "testsUsingOnlyClassLevelMocks": 2,
+    "classesWithClassLevelMocks": 2
   },
   "probeErrors": []
 }

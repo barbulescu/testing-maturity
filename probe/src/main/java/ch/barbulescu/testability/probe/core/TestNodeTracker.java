@@ -192,13 +192,20 @@ public final class TestNodeTracker {
         return false;
     }
 
+    /** Mocks the test itself created, its instance's field initializers included. */
+    public int ownMockCount(String id) {
+        NodeMocks mocks = mocksByNode.get(id);
+        return mocks != null ? mocks.count.get() : 0;
+    }
+
     /**
-     * Mocks created by this node and its ancestors. A Spring test class counts at least its
-     * declared mock beans, since a context from the cache creates none while the test runs.
+     * Mocks created at class level and shared with the class's other tests: by the test's
+     * ancestors, e.g. in {@code @BeforeAll}. A Spring test class counts at least its declared
+     * mock beans, since a context from the cache creates none while the test runs.
      */
-    public int mockCount(String id) {
+    public int classLevelMockCount(String id) {
         int count = 0;
-        for (String node = id; node != null; node = parentOf.get(node)) {
+        for (String node = parentOf.get(id); node != null; node = parentOf.get(node)) {
             NodeMocks mocks = mocksByNode.get(node);
             if (mocks != null) {
                 count += mocks.count.get();
@@ -207,6 +214,16 @@ public final class TestNodeTracker {
         String className = classNameOf.get(id);
         Integer declared = className != null ? mockBeansBySpringClass.get(className) : null;
         return declared != null ? Math.max(count, declared) : count;
+    }
+
+    /** All mocks the test used: its own and its class's. */
+    public int mockCount(String id) {
+        return ownMockCount(id) + classLevelMockCount(id);
+    }
+
+    /** The test's class, or null if unknown. */
+    public String className(String id) {
+        return classNameOf.get(id);
     }
 
     /** The kind flags of every mock created by this node or any of its ancestors. */

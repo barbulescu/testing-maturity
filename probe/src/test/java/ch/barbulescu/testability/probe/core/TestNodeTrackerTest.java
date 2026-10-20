@@ -228,6 +228,34 @@ class TestNodeTrackerTest {
         assertFalse(tracker.usesMocks(CLASS_A + "/[method:two()]"));
     }
 
+    @Test
+    void ownAndClassLevelMocksAreCountedSeparately() {
+        tracker.nodeStarted(ENGINE, null, null, false);
+        tracker.nodeStarted(CLASS_A, ENGINE, "A", false);
+        tracker.mockCreatedOnCurrentThread();
+        tracker.mockCreatedOnCurrentThread(0, true, jupiterStack("instantiateTestClass", "prepare"));
+        tracker.nodeStarted(CLASS_A + "/[method:one()]", CLASS_A, "A", true);
+        tracker.mockCreatedOnCurrentThread();
+
+        assertEquals(2, tracker.ownMockCount(CLASS_A + "/[method:one()]"));
+        assertEquals(1, tracker.classLevelMockCount(CLASS_A + "/[method:one()]"));
+        assertEquals(3, tracker.mockCount(CLASS_A + "/[method:one()]"));
+        assertEquals("A", tracker.className(CLASS_A + "/[method:one()]"));
+    }
+
+    @Test
+    void declaredMockBeansAreClassLevelAndAddToTheTestsOwnMocks() {
+        tracker.springTestClass("A", 2, 0);
+        tracker.nodeStarted(ENGINE, null, null, false);
+        tracker.nodeStarted(CLASS_A, ENGINE, "A", false);
+        tracker.nodeStarted(CLASS_A + "/[method:one()]", CLASS_A, "A", true);
+        tracker.mockCreatedOnCurrentThread();
+
+        assertEquals(1, tracker.ownMockCount(CLASS_A + "/[method:one()]"));
+        assertEquals(2, tracker.classLevelMockCount(CLASS_A + "/[method:one()]"));
+        assertEquals(3, tracker.mockCount(CLASS_A + "/[method:one()]"));
+    }
+
     private static StackTraceElement[] jupiterStack(String instantiateMethod, String prepareMethod) {
         return new StackTraceElement[] {
                 frame("org.mockito.Mockito", "mock"),

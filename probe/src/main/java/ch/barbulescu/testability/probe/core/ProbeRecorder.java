@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -65,6 +66,10 @@ public final class ProbeRecorder {
     private static final String[] MOCK_COUNT_BUCKET_NAMES = {"1", "2-3", "4-5", "6-9", "10+"};
     private final AtomicInteger[] testsByMockCount = newCounters(MOCK_COUNT_BUCKET_NAMES.length);
     private final AtomicInteger maxMocksPerTest = new AtomicInteger();
+    // The same, counting only the mocks a test created itself, not those of its class.
+    private final AtomicInteger[] testsByOwnMockCount = newCounters(MOCK_COUNT_BUCKET_NAMES.length);
+    private final AtomicInteger testsUsingOnlyClassLevelMocks = new AtomicInteger();
+    private final Set<String> classesWithClassLevelMocks = ConcurrentHashMap.newKeySet();
 
     // Spring Boot application-start adapter
     private final AtomicBoolean bootStartsAdapterUsed = new AtomicBoolean(false);
@@ -131,16 +136,20 @@ public final class ProbeRecorder {
 
     /**
      * Only tests that actually ran; skipped tests never reach this. {@code mockKinds}
-     * combines {@link TestNodeTracker}'s kind flags.
+     * combines {@link TestNodeTracker}'s kind flags. {@code className} may be null.
      */
-    public void recordTestMockUsage(boolean springTest, boolean usesMocks, int mockKinds, int mockCount) {
-        for (int i = MOCK_COUNT_BUCKET_MINIMUMS.length - 1; i >= 0; i--) {
-            if (mockCount >= MOCK_COUNT_BUCKET_MINIMUMS[i]) {
-                testsByMockCount[i].incrementAndGet();
-                break;
-            }
-        }
+    public void recordTestMockUsage(boolean springTest, boolean usesMocks, int mockKinds,
+            int ownMockCount, int classLevelMockCount, String className) {
+        int mockCount = ownMockCount + classLevelMockCount;
+        countInMockCountBucket(testsByMockCount, mockCount);
+        countInMockCountBucket(testsByOwnMockCount, ownMockCount);
         maxMocksPerTest.accumulateAndGet(mockCount, Math::max);
+        if (ownMockCount == 0 && classLevelMockCount > 0) {
+            testsUsingOnlyClassLevelMocks.incrementAndGet();
+        }
+        if (classLevelMockCount > 0 && className != null) {
+            classesWithClassLevelMocks.add(className);
+        }
         if ((mockKinds & TestNodeTracker.STATIC_MOCK) != 0) {
             testsUsingStaticMocks.incrementAndGet();
         }
@@ -162,6 +171,16 @@ public final class ProbeRecorder {
             plainTests.incrementAndGet();
             if (usesMocks) {
                 plainTestsUsingMocks.incrementAndGet();
+            }
+        }
+    }
+
+    /** A count of 0 isn't in any bucket. */
+    private static void countInMockCountBucket(AtomicInteger[] buckets, int mockCount) {
+        for (int i = MOCK_COUNT_BUCKET_MINIMUMS.length - 1; i >= 0; i--) {
+            if (mockCount >= MOCK_COUNT_BUCKET_MINIMUMS[i]) {
+                buckets[i].incrementAndGet();
+                return;
             }
         }
     }
@@ -371,6 +390,13 @@ public final class ProbeRecorder {
             }
             writer.endObject();
             writer.name("maxMocksPerTest").value(maxMocksPerTest.get());
+            writer.name("testsByOwnMockCount").beginObject();
+            for (int i = 0; i < MOCK_COUNT_BUCKET_NAMES.length; i++) {
+                writer.name(MOCK_COUNT_BUCKET_NAMES[i]).value(testsByOwnMockCount[i].get());
+            }
+            writer.endObject();
+            writer.name("testsUsingOnlyClassLevelMocks").value(testsUsingOnlyClassLevelMocks.get());
+            writer.name("classesWithClassLevelMocks").value(classesWithClassLevelMocks.size());
             writer.endObject();
         }
 
