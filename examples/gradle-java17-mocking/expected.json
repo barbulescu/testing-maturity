@@ -2,15 +2,23 @@
   "schemaVersion": 1,
   "buildTool": "GRADLE",
   "tests": {
-    "succeeded": 8,
+    "succeeded": 12,
     "failed": 0
   },
   "mocking": {
     "mockitoObserved": true,
-    "plainTests": 6,
-    "plainTestsUsingMocks": 3,
+    "plainTests": 10,
+    "plainTestsUsingMocks": 7,
     "springTests": 2,
-    "springTestsUsingMocks": 1
+    "springTestsUsingMocks": 1,
+    "testsByMockCount": {
+      "1": 7,
+      "2-3": 1,
+      "4-5": 0,
+      "6-9": 0,
+      "10+": 0
+    },
+    "maxMocksPerTest": 3
   },
   "probeErrors": []
 }

@@ -51,7 +51,8 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
         });
         Safe.run(() -> {
             TestNodeTracker.getInstance().nodeStarted(
-                    testIdentifier.getUniqueId(), testIdentifier.getParentId().orElse(null), classNameOf(testIdentifier));
+                    testIdentifier.getUniqueId(), testIdentifier.getParentId().orElse(null), classNameOf(testIdentifier),
+                    testIdentifier.isTest());
             MockitoHook.ensureInstalledOnCurrentThread();
         });
         Safe.run(() -> inspectTestClass(testIdentifier));
@@ -119,6 +120,7 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
      */
     @Override
     public void executionSkipped(TestIdentifier testIdentifier, String reason) {
+        Safe.run(() -> TestNodeTracker.getInstance().discardPendingMocks());
         Safe.run(() -> {
             TestPlan plan = testPlan;
             Set<TestIdentifier> descendants = plan != null && testIdentifier.isContainer()

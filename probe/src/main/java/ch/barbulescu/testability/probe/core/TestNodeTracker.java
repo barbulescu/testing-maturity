@@ -11,10 +11,15 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Attributes what happens on a thread - Mockito creating a mock - to the
  * JUnit Platform node (test or container) currently running on it, so each
  * finished test can be classified by what happened during it or any of its
- * ancestors. Work done at class level (a {@code @BeforeAll}, or a field
- * initializer, which runs before the test method's own start event) is
- * attributed to the class container and therefore counts for all of its
+ * ancestors. Work done at class level (a {@code @BeforeAll}, a static field)
+ * is attributed to the class container and therefore counts for all of its
  * tests.
+ * <p>
+ * JUnit creates a test's instance (running its field initializers) before
+ * reporting that the test started, while the class is still the running node.
+ * Mocks created then are held back and attributed to the next test that starts
+ * on the thread, so a field initializer counts once per test, like a
+ * {@code @BeforeEach}.
  * <p>
  * Spring test classes are identified by class name instead: the Spring
  * listener has no JUnit Platform node at hand, but both sides agree on the
@@ -33,6 +38,8 @@ public final class TestNodeTracker {
     private final ThreadLocal<Deque<String>> running = ThreadLocal.withInitial(ArrayDeque::new);
     private final Map<String, String> parentOf = new ConcurrentHashMap<>();
     private final Map<String, String> classNameOf = new ConcurrentHashMap<>();
+    private final Set<String> tests = ConcurrentHashMap.newKeySet();
+    private final ThreadLocal<NodeMocks> pendingForNextTest = new ThreadLocal<>();
     private final Map<String, NodeMocks> mocksByNode = new ConcurrentHashMap<>();
     private final Set<String> springClasses = ConcurrentHashMap.newKeySet();
     private final Map<String, Integer> mockBeansBySpringClass = new ConcurrentHashMap<>();
@@ -50,8 +57,11 @@ public final class TestNodeTracker {
         return INSTANCE;
     }
 
-    /** {@code className} may be null (e.g. a dynamic test), in which case the parent's is inherited. */
-    public void nodeStarted(String id, String parentId, String className) {
+    /**
+     * {@code className} may be null (e.g. a dynamic test), in which case the parent's is inherited.
+     * {@code test} is false for containers.
+     */
+    public void nodeStarted(String id, String parentId, String className, boolean test) {
         if (parentId != null) {
             parentOf.put(id, parentId);
         }
@@ -60,10 +70,26 @@ public final class TestNodeTracker {
             classNameOf.put(id, effectiveClassName);
         }
         running.get().push(id);
+        if (test) {
+            tests.add(id);
+            NodeMocks pending = pendingForNextTest.get();
+            if (pending != null) {
+                pendingForNextTest.remove();
+                mocksByNode.put(id, pending);
+            }
+        }
     }
 
     public void nodeFinished(String id) {
         running.get().removeFirstOccurrence(id);
+        if (!tests.contains(id)) {
+            pendingForNextTest.remove();
+        }
+    }
+
+    /** A skipped test may have had its instance created, but it never starts. */
+    public void discardPendingMocks() {
+        pendingForNextTest.remove();
     }
 
     /**
@@ -81,14 +107,60 @@ public final class TestNodeTracker {
      * nested mocks deep stubs create along a call chain: they set flags but aren't counted.
      */
     public void mockCreatedOnCurrentThread(int kinds, boolean countsAsMock) {
+        mockCreatedOnCurrentThread(kinds, countsAsMock, null);
+    }
+
+    /** {@code stack} is the creating thread's stack, captured here when null (tests pass their own). */
+    void mockCreatedOnCurrentThread(int kinds, boolean countsAsMock, StackTraceElement[] stack) {
         String current = running.get().peek();
-        if (current != null && parentOf.containsKey(current)) {
-            NodeMocks mocks = mocksByNode.computeIfAbsent(current, key -> new NodeMocks());
-            mocks.kinds.accumulateAndGet(kinds, (a, b) -> a | b);
-            if (countsAsMock) {
-                mocks.count.incrementAndGet();
+        if (current == null || !parentOf.containsKey(current)) {
+            return;
+        }
+        NodeMocks mocks;
+        if (!tests.contains(current)
+                && isCreatingTestInstance(stack != null ? stack : new Throwable().getStackTrace())) {
+            mocks = pendingForNextTest.get();
+            if (mocks == null) {
+                mocks = new NodeMocks();
+                pendingForNextTest.set(mocks);
+            }
+        } else {
+            mocks = mocksByNode.computeIfAbsent(current, key -> new NodeMocks());
+        }
+        mocks.kinds.accumulateAndGet(kinds, (a, b) -> a | b);
+        if (countsAsMock) {
+            mocks.count.incrementAndGet();
+        }
+    }
+
+    /**
+     * Whether the mock is being created while JUnit creates the instance for a single test:
+     * Jupiter's {@code instantiateTestClass} called from a test method's {@code prepare}
+     * (not a {@code PER_CLASS} instance, which the class's tests share), or JUnit 4's
+     * {@code createTest}. A Spring frame between the mock and the instantiation means Spring
+     * is loading its context, e.g. to inject the constructor: its mock beans belong to the class.
+     */
+    static boolean isCreatingTestInstance(StackTraceElement[] stack) {
+        for (int i = 0; i < stack.length; i++) {
+            String className = stack[i].getClassName();
+            String methodName = stack[i].getMethodName();
+            if (className.startsWith("org.springframework.")) {
+                return false;
+            }
+            if ("org.junit.runners.BlockJUnit4ClassRunner".equals(className) && "createTest".equals(methodName)) {
+                return true;
+            }
+            if (className.startsWith("org.junit.jupiter.engine.descriptor.") && "instantiateTestClass".equals(methodName)) {
+                for (int j = i + 1; j < stack.length; j++) {
+                    if ("org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor".equals(stack[j].getClassName())
+                            && "prepare".equals(stack[j].getMethodName())) {
+                        return true;
+                    }
+                }
+                return false;
             }
         }
+        return false;
     }
 
     /** Declared {@code @MockBean}/{@code @MockitoBean} and spy bean fields, counted separately. */

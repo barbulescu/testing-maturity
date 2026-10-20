@@ -173,7 +173,7 @@ class MockitoHookTest {
 
     private String start(String name) {
         String id = PARENT + "/[method:" + name + "()]";
-        tracker.nodeStarted(id, PARENT, "Fake");
+        tracker.nodeStarted(id, PARENT, "Fake", true);
         started.add(id);
         return id;
     }

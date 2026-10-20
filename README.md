@@ -93,8 +93,8 @@ All Spring and Boot types are matched **by class or annotation name**. The jar i
 The report counts how many tests used Mockito, split into plain tests and Spring tests:
 
 - **When a test counts as using mocks.** Mockito's listeners are thread-local, so the JUnit listener installs the probe's listener on each thread when a test or container starts there. Every mock created on that thread is attributed to the node currently running on it:
-  - A mock created inside the test method, its `@BeforeEach`, or by `MockitoExtension` counts for that test only.
-  - A mock created at class level counts for every test in the class. That includes a field initializer, which runs before the method's start event, and `@BeforeAll`.
+  - A mock created inside the test method, its `@BeforeEach`, by `MockitoExtension`, or by a field initializer counts for that test only. JUnit creates a new instance of the class for each test, running the field initializers, before it reports that the test started. The probe recognizes that from the call stack (Jupiter's `instantiateTestClass` for a test method, JUnit 4's `createTest`) and holds the mock back for the test that starts next.
+  - A mock created at class level counts for every test in the class: `@BeforeAll`, a static field, or a field of a `@TestInstance(PER_CLASS)` class, whose single instance the tests share.
   - A Spring test class that declares `@MockBean`, `@MockitoBean`, `@SpyBean` or `@MockitoSpyBean` fields counts as using mocks even when its context, and so its mocks, came from the cache.
 - **When a test counts as a Spring test.** It counts as Spring if the probe's Spring test listener saw its class; otherwise it counts as plain.
 - **Only finished tests count.** Skipped tests are left out.
@@ -168,6 +168,7 @@ How to read it:
   - A mock created on a thread other than the test's isn't counted.
   - Under parallel execution, work stealing can attribute a class-level mock to the wrong class.
   - A mock defined in a `@TestConfiguration`, rather than as a field, counts only for the first test class that loads that context.
+  - Mock beans created while Spring loads a context stay with the class, even when the context is loaded to create a test's instance (constructor injection). This holds for JUnit 4's `SpringRunner` too.
 - JUnit Platform's `ABORTED` status (for example a failing assumption) is counted under `failed`.
 - `tests.fixedOrderClasses` counts test classes that pin the order their tests run in, which usually means the tests depend on each other: `@TestMethodOrder` with any orderer except `MethodOrderer.Random`, or JUnit 4's `@FixMethodOrder(MethodSorters.NAME_ASCENDING)`. Each class is checked once, by annotation name, when its container starts.
 - `tests.byDuration` sorts finished tests by how long each took, from its start event to its finish event. That includes `@BeforeEach` and `@AfterEach`, but not class-level setup such as `@BeforeAll` or loading a Spring context. `tests.maxTestDurationMs` is the slowest test. Slow unit tests often wait with `Thread.sleep` instead of for a condition, or do real I/O.
@@ -219,7 +220,7 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java21-boot4-junit6` | Binary compatibility with the newest stack |
 | `gradle-java17-context-fails` | Spring context fails to load; root-cause type captured, no message leaked |
 | `gradle-java17-plain-spring-contexts` | Spring without Boot: three test classes over two configurations give two plain contexts |
-| `gradle-java17-mocking` | Mock usage counted per test and split between plain and Spring tests: `@Mock` via `MockitoExtension`, an inline mock in one of two methods, a field initializer, `@MockitoBean` |
+| `gradle-java17-mocking` | Mock usage counted per test and split between plain and Spring tests: `@Mock` via `MockitoExtension`, an inline mock in one of two methods, a field initializer in a class of three tests (one mock each), a `@BeforeAll` mock shared by two tests, `@MockitoBean` |
 | `gradle-java17-mock-smells` | Mockito smells counted per test, each next to a test without it: static mocking, deep stubs, lenient mocks, spies, and a test with six mocks |
 | `gradle-java17-spring-smells` | Spring without Boot: `@DirtiesContext` on a class and on a method, next to a class without it |
 | `gradle-java17-mock-everything` | `@MockBean` fields counted on a `@SpringBootTest` that doesn't test any real code |
