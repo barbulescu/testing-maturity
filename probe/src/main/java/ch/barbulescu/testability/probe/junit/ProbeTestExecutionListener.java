@@ -1,5 +1,6 @@
 package ch.barbulescu.testability.probe.junit;
 
+import ch.barbulescu.testability.probe.core.MockKObserver;
 import ch.barbulescu.testability.probe.core.ProbeRecorder;
 import ch.barbulescu.testability.probe.core.MockitoHook;
 import ch.barbulescu.testability.probe.core.Safe;
@@ -30,6 +31,7 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
     private volatile TestPlan testPlan;
     private final Set<String> inspectedClasses = ConcurrentHashMap.newKeySet();
     private final Map<String, Long> testStartNanos = new ConcurrentHashMap<>();
+    private final Map<String, Boolean> perClassByClassName = new ConcurrentHashMap<>();
 
     @Override
     public void testPlanExecutionStarted(TestPlan testPlan) {
@@ -56,6 +58,38 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
             MockitoHook.ensureInstalledOnCurrentThread();
         });
         Safe.run(() -> inspectTestClass(testIdentifier));
+        Safe.run(() -> {
+            MockKObserver.watchCurrentThread();
+            // MockK mocks created since the last event on this thread were created while JUnit
+            // prepared this test: its instance (field initializers, @MockK fields). A PER_CLASS
+            // instance is created after its class started, so its mocks are found here too, on
+            // the first test, but belong to the class. Mocks from @BeforeAll land on the first
+            // test as well; nothing tells them apart from the instance's.
+            String creditTo = testIdentifier.isTest() && isPerClass(testIdentifier)
+                    ? testIdentifier.getParentId().orElse(null)
+                    : testIdentifier.getUniqueId();
+            creditNewMockKMocks(creditTo);
+        });
+    }
+
+    private static void creditNewMockKMocks(String nodeId) {
+        MockKObserver.NewMocks mocks = MockKObserver.newMocksOnCurrentThread();
+        if (nodeId != null) {
+            TestNodeTracker.getInstance().mocksCreatedFor(nodeId, mocks.count, mocks.kinds);
+        }
+    }
+
+    private boolean isPerClass(TestIdentifier test) {
+        String className = classNameOf(test);
+        if (className == null) {
+            return false;
+        }
+        Boolean perClass = perClassByClassName.get(className);
+        if (perClass == null) {
+            perClass = TestInstanceLifecycle.isPerClass(loadClass(className), testPlan);
+            perClassByClassName.put(className, perClass);
+        }
+        return perClass;
     }
 
     /** Once per test class, when its container starts. */
@@ -91,6 +125,8 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
 
     @Override
     public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult result) {
+        // Created while the node ran: the test method, @BeforeEach and @AfterEach, or @AfterAll.
+        Safe.run(() -> creditNewMockKMocks(testIdentifier.getUniqueId()));
         Safe.run(() -> {
             if (!testIdentifier.isTest()) {
                 return;
@@ -121,6 +157,7 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
     @Override
     public void executionSkipped(TestIdentifier testIdentifier, String reason) {
         Safe.run(() -> TestNodeTracker.getInstance().discardPendingMocks());
+        Safe.run(MockKObserver::newMocksOnCurrentThread);
         Safe.run(() -> {
             TestPlan plan = testPlan;
             Set<TestIdentifier> descendants = plan != null && testIdentifier.isContainer()

@@ -256,6 +256,20 @@ class TestNodeTrackerTest {
         assertEquals(3, tracker.mockCount(CLASS_A + "/[method:one()]"));
     }
 
+    @Test
+    void mocksFoundLaterAreCreditedToTheGivenNode() {
+        tracker.nodeStarted(ENGINE, null, null, false);
+        tracker.mocksCreatedFor(ENGINE, 1, 0);
+        tracker.nodeStarted(CLASS_A, ENGINE, "A", false);
+        tracker.mocksCreatedFor(CLASS_A, 1, TestNodeTracker.STATIC_MOCK);
+        tracker.nodeStarted(CLASS_A + "/[method:one()]", CLASS_A, "A", true);
+        tracker.mocksCreatedFor(CLASS_A + "/[method:one()]", 2, TestNodeTracker.SPY);
+
+        assertEquals(2, tracker.ownMockCount(CLASS_A + "/[method:one()]"));
+        assertEquals(1, tracker.classLevelMockCount(CLASS_A + "/[method:one()]"));
+        assertEquals(TestNodeTracker.STATIC_MOCK | TestNodeTracker.SPY, tracker.mockKinds(CLASS_A + "/[method:one()]"));
+    }
+
     private static StackTraceElement[] jupiterStack(String instantiateMethod, String prepareMethod) {
         return new StackTraceElement[] {
                 frame("org.mockito.Mockito", "mock"),

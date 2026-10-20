@@ -23,6 +23,7 @@ class ClasspathPresenceTest {
         assertFalse(presence.get("testcontainers"));
         assertFalse(presence.get("wiremock"));
         assertTrue(presence.get("mockito"));
+        assertFalse(presence.get("mockk"));
         assertTrue(presence.get("springBoot"));
     }
 

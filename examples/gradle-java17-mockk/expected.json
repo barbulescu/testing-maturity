@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "buildTool": "GRADLE",
+  "onClasspath": {
+    "mockito": false,
+    "mockk": true
+  },
+  "tests": {
+    "succeeded": 10,
+    "failed": 0
+  },
+  "mocking": {
+    "mockitoObserved": false,
+    "mockkObserved": true,
+    "plainTests": 10,
+    "plainTestsUsingMocks": 9,
+    "testsUsingStaticMocks": 1,
+    "testsUsingSpies": 1,
+    "testsByMockCount": {
+      "1": 8,
+      "2-3": 1,
+      "4-5": 0,
+      "6-9": 0,
+      "10+": 0
+    },
+    "maxMocksPerTest": 2,
+    "testsByOwnMockCount": {
+      "1": 6,
+      "2-3": 1,
+      "4-5": 0,
+      "6-9": 0,
+      "10+": 0
+    },
+    "testsUsingOnlyClassLevelMocks": 2,
+    "classesWithClassLevelMocks": 1
+  },
+  "probeErrors": []
+}

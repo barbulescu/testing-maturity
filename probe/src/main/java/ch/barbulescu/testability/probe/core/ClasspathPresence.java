@@ -26,6 +26,7 @@ public final class ClasspathPresence {
                 isPresent(loader, "com.github.tomakehurst.wiremock.WireMockServer")
                         || isPresent(loader, "com.github.tomakehurst.wiremock.junit5.WireMockExtension"));
         presence.put("mockito", isPresent(loader, "org.mockito.Mockito"));
+        presence.put("mockk", isPresent(loader, "io.mockk.MockKGateway"));
         presence.put("springBoot", isPresent(loader, "org.springframework.boot.SpringApplication"));
         return presence;
     }

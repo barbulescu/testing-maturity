@@ -163,6 +163,19 @@ public final class TestNodeTracker {
         return false;
     }
 
+    /**
+     * Mocks found after they were created, e.g. MockK's, credited to a node that has started.
+     * Engine roots are ignored, as for {@link #mockCreatedOnCurrentThread(int, boolean)}.
+     */
+    public void mocksCreatedFor(String id, int count, int kinds) {
+        if (count == 0 && kinds == 0 || !parentOf.containsKey(id)) {
+            return;
+        }
+        NodeMocks mocks = mocksByNode.computeIfAbsent(id, key -> new NodeMocks());
+        mocks.kinds.accumulateAndGet(kinds, (a, b) -> a | b);
+        mocks.count.addAndGet(count);
+    }
+
     /** Declared {@code @MockBean}/{@code @MockitoBean} and spy bean fields, counted separately. */
     public void springTestClass(String className, int mockBeanFields, int spyBeanFields) {
         springClasses.add(className);

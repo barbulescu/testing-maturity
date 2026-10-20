@@ -376,6 +376,7 @@ public final class ProbeRecorder {
 
             writer.name("mocking").beginObject();
             writer.name("mockitoObserved").value(MockitoHook.isObserved());
+            writer.name("mockkObserved").value(MockKObserver.isObserved());
             writer.name("plainTests").value(plainTests.get());
             writer.name("plainTestsUsingMocks").value(plainTestsUsingMocks.get());
             writer.name("springTests").value(springTests.get());
