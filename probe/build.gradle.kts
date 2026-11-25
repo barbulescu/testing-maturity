@@ -1,6 +1,7 @@
 plugins {
     `java-library`
     jacoco
+    id("com.vanniktech.maven.publish") version "0.37.0"
 }
 
 java {
@@ -59,20 +60,55 @@ tasks.jacocoTestReport {
     }
 }
 
+tasks.javadoc {
+    // mockito-core 2.1.0 ships its .java files in the jar. Without an explicit source path,
+    // javadoc looks for sources on the classpath and fails compiling them.
+    (options as CoreJavadocOptions).addStringOption("sourcepath", sourceSets.main.get().java.srcDirs.joinToString(File.pathSeparator))
+}
+
 tasks.named<Jar>("jar") {
     archiveBaseName.set("testability-probe")
 }
 
-apply(plugin = "maven-publish")
+mavenPublishing {
+    publishToMavenCentral()
+    // Sign only when a key is given (see README, "Releasing"), so CI and the harness's
+    // local publish keep working without secrets. Central rejects unsigned uploads.
+    if (providers.gradleProperty("signingInMemoryKey").isPresent) {
+        signAllPublications()
+    }
+    coordinates("ch.barbulescu.testability", "testability-probe", version.toString())
 
-configure<PublishingExtension> {
-    publications {
-        create<MavenPublication>("maven") {
-            from(components["java"])
-            groupId = "ch.barbulescu.testability"
-            artifactId = "testability-probe"
+    pom {
+        name = "Testability Probe"
+        description = "Test-scoped dependency that records facts about how a JVM project's tests run and writes them as a JSON report."
+        inceptionYear = "2026"
+        url = "https://github.com/barbulescu/testing-maturity"
+        licenses {
+            license {
+                name = "The Apache License, Version 2.0"
+                url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                distribution = "repo"
+            }
+        }
+        developers {
+            developer {
+                id = "barbulescu"
+                name = "Marius Barbulescu"
+                url = "https://github.com/barbulescu"
+            }
+        }
+        scm {
+            url = "https://github.com/barbulescu/testing-maturity"
+            connection = "scm:git:https://github.com/barbulescu/testing-maturity.git"
+            developerConnection = "scm:git:ssh://git@github.com/barbulescu/testing-maturity.git"
         }
     }
+}
+
+// The harness publishes the probe here. The plugin names its publication "maven",
+// so the harness's :probe:publishMavenPublicationToProbeRepoRepository keeps working.
+publishing {
     repositories {
         maven {
             name = "probeRepo"

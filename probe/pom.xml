@@ -12,10 +12,34 @@
     <parent>
         <groupId>ch.barbulescu.testability</groupId>
         <artifactId>testability-probe-parent</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.1.0</version>
     </parent>
 
     <artifactId>testability-probe</artifactId>
+    <!-- Same metadata as the mavenPublishing block in probe/build.gradle.kts, which is what releases use. -->
+    <name>Testability Probe</name>
+    <description>Test-scoped dependency that records facts about how a JVM project's tests run and writes them as a JSON report.</description>
+    <url>https://github.com/barbulescu/testing-maturity</url>
+    <inceptionYear>2026</inceptionYear>
+    <licenses>
+        <license>
+            <name>The Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <id>barbulescu</id>
+            <name>Marius Barbulescu</name>
+            <url>https://github.com/barbulescu</url>
+        </developer>
+    </developers>
+    <scm>
+        <url>https://github.com/barbulescu/testing-maturity</url>
+        <connection>scm:git:https://github.com/barbulescu/testing-maturity.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/barbulescu/testing-maturity.git</developerConnection>
+    </scm>
 
     <properties>
         <!-- Only production code is constrained to Java 8. -->

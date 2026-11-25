@@ -45,7 +45,7 @@ Add it to the **test runtime classpath** only.
 <dependency>
   <groupId>ch.barbulescu.testability</groupId>
   <artifactId>testability-probe</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.1.0</version>
   <scope>test</scope>
 </dependency>
 ```
@@ -56,7 +56,7 @@ In a corporate parent POM, put it in `<dependencies>`, not `<dependencyManagemen
 
 ```kotlin
 dependencies {
-    testRuntimeOnly("ch.barbulescu.testability:testability-probe:0.1.0-SNAPSHOT")
+    testRuntimeOnly("ch.barbulescu.testability:testability-probe:0.1.0")
 }
 ```
 
@@ -310,6 +310,34 @@ Differences from Gradle:
 
 `scripts/check-maven-sync.py` compares the two builds: coordinates, modules, external dependency versions, Java versions and the classifier's main class. CI runs it, so a change to one build must be made in the other too.
 
+### Releasing to Maven Central
+
+Only the probe is published, and only from the Gradle build, with the [vanniktech maven-publish plugin](https://vanniktech.github.io/gradle-maven-publish-plugin/central/) to the [Central Portal](https://central.sonatype.com). The namespace `ch.barbulescu` is verified there through a DNS TXT record on `barbulescu.ch`. Central requires sources and javadoc jars, the POM metadata in `probe/build.gradle.kts`, and GPG signatures. The build signs only when a key is given, so CI and the harness don't need one.
+
+One-time setup, in `~/.gradle/gradle.properties` (never in the repository):
+
+```properties
+mavenCentralUsername=<Central Portal user token name>
+mavenCentralPassword=<Central Portal user token password>
+signingInMemoryKeyId=<last 8 hex digits of the signing key id>
+signingInMemoryKeyPassword=<key passphrase>
+```
+
+The public key must be on `keyserver.ubuntu.com` or `keys.openpgp.org`, where Central looks it up.
+
+```bash
+export ORG_GRADLE_PROJECT_signingInMemoryKey="$(gpg --export-secret-keys --armor <key id>)"
+
+# Dry run: the .asc signatures, -sources.jar and -javadoc.jar appear next to the jar.
+./gradlew :probe:publishToMavenLocal
+ls ~/.m2/repository/ch/barbulescu/testability/testability-probe/<version>/
+
+# Release: set a version without -SNAPSHOT in build.gradle.kts and every pom.xml first.
+./gradlew :probe:publishToMavenCentral
+```
+
+`publishToMavenCentral` uploads without releasing. The Portal validates the upload under **Deployments**. Click **Publish** there, or **Drop** to discard it and upload again. Use `publishAndReleaseToMavenCentral` to skip that step. A published version can never be changed or deleted. Fix mistakes with a new version. After a release, tag it (`git tag v<version>`) and move the version to the next `-SNAPSHOT`.
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every push to `main`, on pull requests, and on demand:
@@ -327,3 +355,7 @@ Each example job keeps its `build/harness-cache` in the GitHub Actions cache, ke
 
 - **A runtime agent.** It would only be worth reconsidering if configuration at the runner level were allowed, and if a large group of projects turned out to be unmeasured and couldn't adopt the dependency.
 - **Fake `CI_*` variables in the harness.** The plan calls for them, but `ContainerBuildRunner` currently sets only `TESTABILITY_PROBE_DIR`. The `ci` fields and the `CI_PROJECT_DIR`-relative `moduleDir` are covered only by unit tests.
+
+## License
+
+[Apache License 2.0](LICENSE)
