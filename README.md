@@ -45,7 +45,7 @@ Add it to the **test runtime classpath** only.
 <dependency>
   <groupId>ch.barbulescu.testability</groupId>
   <artifactId>testability-probe</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.1.0</version>
   <scope>test</scope>
 </dependency>
 ```
@@ -56,7 +56,7 @@ In a corporate parent POM, put it in `<dependencies>`, not `<dependencyManagemen
 
 ```kotlin
 dependencies {
-    testRuntimeOnly("ch.barbulescu.testability:testability-probe:0.1.0-SNAPSHOT")
+    testRuntimeOnly("ch.barbulescu.testability:testability-probe:0.1.0")
 }
 ```
 
