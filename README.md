@@ -48,7 +48,7 @@ Add it to the **test runtime classpath** only.
 <dependency>
   <groupId>ch.barbulescu.testability</groupId>
   <artifactId>testability-probe</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
   <scope>test</scope>
 </dependency>
 ```
@@ -59,7 +59,7 @@ In a corporate parent POM, put it in `<dependencies>`, not `<dependencyManagemen
 
 ```kotlin
 dependencies {
-    testRuntimeOnly("ch.barbulescu.testability:testability-probe:0.1.0")
+    testRuntimeOnly("ch.barbulescu.testability:testability-probe:0.2.0")
 }
 ```
 
@@ -175,7 +175,7 @@ MockK has no listener API like Mockito's, so the probe finds MockK mocks after t
 ```json
 {
   "schemaVersion": 1,
-  "probeVersion": "0.1.0",
+  "probeVersion": "0.2.0",
   "ci": { "projectPath": "group/payments", "jobId": "123", "commitSha": "abc…", "pipelineSource": "push" },
   "moduleDir": "services/payments",
   "workerId": "4211-a7f3c09e",
