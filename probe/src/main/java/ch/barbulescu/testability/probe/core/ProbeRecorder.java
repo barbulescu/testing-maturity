@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public final class ProbeRecorder {
 
-    private static final String PROBE_VERSION = "0.1.0";
+    private static final String PROBE_VERSION = ProbeVersion.read();
     private static final int SCHEMA_VERSION = 1;
 
     private static volatile ProbeRecorder instance;

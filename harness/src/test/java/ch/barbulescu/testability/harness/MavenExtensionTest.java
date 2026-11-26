@@ -44,6 +44,9 @@ class MavenExtensionTest {
             JsonNode report = objectMapper.readTree(reportJson);
             byModuleDir.put(report.get("moduleDir").asText(), report);
         }
+        for (JsonNode report : byModuleDir.values()) {
+            assertEquals(probeVersion(), report.get("probeVersion").asText(), "the report must state the probe's own version");
+        }
         assertEquals(2, byModuleDir.get(WORKDIR + "/module-a").get("tests").get("succeeded").asInt());
         assertEquals(1, byModuleDir.get(WORKDIR + "/module-b").get("tests").get("succeeded").asInt());
     }
