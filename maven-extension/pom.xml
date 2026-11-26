@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Maven core extension that adds the probe to every project of a build, without changing its POMs:
+  mvn verify -Dmaven.ext.class.path=/path/to/testability-probe-maven-extension.jar
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ch.barbulescu.testability</groupId>
+        <artifactId>testability-probe-parent</artifactId>
+        <version>0.2.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>testability-probe-maven-extension</artifactId>
+    <!-- Same metadata as the mavenPublishing block in maven-extension/build.gradle.kts, which is what releases use. -->
+    <name>Testability Probe Maven Extension</name>
+    <description>Maven core extension that adds the testability probe to every project of a build, without changing its POMs.</description>
+    <url>https://github.com/barbulescu/testing-maturity</url>
+    <inceptionYear>2026</inceptionYear>
+    <licenses>
+        <license>
+            <name>The Apache License, Version 2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <id>barbulescu</id>
+            <name>Marius Barbulescu</name>
+            <url>https://github.com/barbulescu</url>
+        </developer>
+    </developers>
+    <scm>
+        <url>https://github.com/barbulescu/testing-maturity</url>
+        <connection>scm:git:https://github.com/barbulescu/testing-maturity.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/barbulescu/testing-maturity.git</developerConnection>
+    </scm>
+
+    <properties>
+        <!-- Runs inside the user's Maven, which may still run on Java 8. -->
+        <maven.compiler.release>8</maven.compiler.release>
+    </properties>
+
+    <dependencies>
+        <!-- Provided by the Maven that loads the extension. 3.6.3 is the oldest Maven we support. -->
+        <dependency>
+            <groupId>org.apache.maven</groupId>
+            <artifactId>maven-core</artifactId>
+            <version>3.6.3</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>javax.inject</groupId>
+            <artifactId>javax.inject</artifactId>
+            <version>1</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>1.7.29</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.11.4</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <version>1.11.4</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <resources>
+            <!-- Fills in @project.version@ in extension.properties: the probe version the extension adds. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <!-- Same content as Gradle's jar. -->
+                        <addMavenDescriptor>false</addMavenDescriptor>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

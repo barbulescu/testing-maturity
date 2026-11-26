@@ -1,0 +1,68 @@
+# Runs a Maven build with the testability probe added by the Maven extension:
+# no change to the project's POMs. Works with `mvn` and with the Maven wrapper (`./mvnw`).
+spec:
+  inputs:
+    job-name:
+      default: test
+      description: Name of the job this component adds.
+    stage:
+      default: test
+    image:
+      default: maven:3.9-eclipse-temurin-21
+      description: Image with a JDK, and Maven unless `maven` is the wrapper.
+    maven:
+      default: mvn
+      description: How to run Maven, `mvn` or `./mvnw`.
+    args:
+      default: -B verify
+      description: Arguments of the Maven build that runs the tests.
+    fetch-args:
+      default: ""
+      description: Extra arguments for downloading the extension, for example `-s ci_settings.xml` for a mirror.
+    version:
+      default: latest
+      description: Version of the probe and its extension, `latest` for the latest release.
+    reports-dir:
+      default: .testability-reports
+      description: Where the probe's reports go, relative to the project directory. Kept as job artifacts.
+---
+"$[[ inputs.job-name ]]":
+  stage: $[[ inputs.stage ]]
+  image: $[[ inputs.image ]]
+  variables:
+    TESTABILITY_PROBE_VERSION: $[[ inputs.version ]]
+    TESTABILITY_PROBE_DIR: $CI_PROJECT_DIR/$[[ inputs.reports-dir ]]
+  script:
+    # Downloads the extension through Maven, so the job's mirror and credentials apply. A throwaway POM
+    # resolves `latest` as a version range. Its own local repository keeps snapshots out of the range.
+    # If the download fails, the build still runs, without the probe.
+    - |
+      probe_tmp=/tmp/testability-probe
+      if [ "$TESTABILITY_PROBE_VERSION" = latest ]; then probe_range='[0,)'; else probe_range="[$TESTABILITY_PROBE_VERSION]"; fi
+      mkdir -p "$probe_tmp"
+      cat > "$probe_tmp/pom.xml" <<EOF
+      <project xmlns="http://maven.apache.org/POM/4.0.0">
+        <modelVersion>4.0.0</modelVersion>
+        <groupId>local</groupId><artifactId>testability-probe-fetch</artifactId><version>0</version><packaging>pom</packaging>
+        <dependencies><dependency>
+          <groupId>ch.barbulescu.testability</groupId>
+          <artifactId>testability-probe-maven-extension</artifactId>
+          <version>$probe_range</version>
+        </dependency></dependencies>
+      </project>
+      EOF
+      if $[[ inputs.maven ]] -B -q -f "$probe_tmp/pom.xml" -Dmaven.repo.local="$probe_tmp/repo" $[[ inputs.fetch-args ]] \
+           org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy-dependencies \
+           -DoutputDirectory="$probe_tmp/lib" -DexcludeTransitive=true; then
+        probe_extension=$(ls "$probe_tmp"/lib/testability-probe-maven-extension-*.jar)
+        # MAVEN_OPTS reaches Maven's own JVM with mvn and ./mvnw, on every Maven 3 version.
+        export MAVEN_OPTS="${MAVEN_OPTS:-} -Dmaven.ext.class.path=$probe_extension"
+        echo "Testability probe: using $(basename "$probe_extension")"
+      else
+        echo "WARNING: testability probe extension not downloaded, the build runs without the probe"
+      fi
+    - $[[ inputs.maven ]] $[[ inputs.args ]]
+  artifacts:
+    when: always
+    paths:
+      - $[[ inputs.reports-dir ]]/

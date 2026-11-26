@@ -1,0 +1,58 @@
+# Runs a Gradle build with the testability probe added by an init script:
+# no change to the project's build files. Works with the Gradle wrapper (`./gradlew`) and with `gradle`.
+spec:
+  inputs:
+    job-name:
+      default: test
+      description: Name of the job this component adds.
+    stage:
+      default: test
+    image:
+      default: eclipse-temurin:21-jdk
+      description: Image with a JDK, and Gradle unless `gradle` is the wrapper.
+    gradle:
+      default: ./gradlew
+      description: How to run Gradle, `./gradlew` or `gradle`.
+    args:
+      default: check
+      description: Tasks and arguments of the Gradle build that runs the tests.
+    version:
+      default: latest
+      description: Version of the probe, `latest` for the latest release.
+    reports-dir:
+      default: .testability-reports
+      description: Where the probe's reports go, relative to the project directory. Kept as job artifacts.
+---
+"$[[ inputs.job-name ]]":
+  stage: $[[ inputs.stage ]]
+  image: $[[ inputs.image ]]
+  variables:
+    TESTABILITY_PROBE_VERSION: $[[ inputs.version ]]
+    TESTABILITY_PROBE_DIR: $CI_PROJECT_DIR/$[[ inputs.reports-dir ]]
+  script:
+    # The init script adds the probe to the test runtime classpath of every Java project. The probe
+    # resolves from each project's own repositories. It is passed with --init-script and not put into
+    # GRADLE_USER_HOME/init.d, so a cached Gradle home doesn't carry it into other jobs.
+    - |
+      probe_init=/tmp/testability-probe.init.gradle
+      cat > "$probe_init" <<'EOF'
+      if (System.getProperty('testability.probe.skip') == 'true') {
+          return
+      }
+      def probeVersion = System.getenv('TESTABILITY_PROBE_VERSION')
+      if (!probeVersion || probeVersion == 'latest') {
+          probeVersion = 'latest.release'
+      }
+      allprojects {
+          plugins.withId('java') {
+              dependencies {
+                  testRuntimeOnly "ch.barbulescu.testability:testability-probe:${probeVersion}"
+              }
+          }
+      }
+      EOF
+    - $[[ inputs.gradle ]] --init-script /tmp/testability-probe.init.gradle $[[ inputs.args ]]
+  artifacts:
+    when: always
+    paths:
+      - $[[ inputs.reports-dir ]]/
