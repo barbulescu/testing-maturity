@@ -33,6 +33,13 @@
             <type>pom</type>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>ch.barbulescu.testability</groupId>
+            <artifactId>testability-probe-maven-extension</artifactId>
+            <version>${project.version}</version>
+            <type>pom</type>
+            <scope>test</scope>
+        </dependency>
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -88,6 +95,13 @@
                                     <version>${project.version}</version>
                                     <destFileName>testability-probe.jar</destFileName>
                                 </artifactItem>
+                                <!-- MavenExtensionTest loads it with -Dmaven.ext.class.path. -->
+                                <artifactItem>
+                                    <groupId>${project.groupId}</groupId>
+                                    <artifactId>testability-probe-maven-extension</artifactId>
+                                    <version>${project.version}</version>
+                                    <destFileName>testability-probe-maven-extension.jar</destFileName>
+                                </artifactItem>
                             </artifactItems>
                             <outputDirectory>${project.build.directory}/probe</outputDirectory>
                         </configuration>
@@ -128,6 +142,7 @@
                         <testability.harness.probeGroupId>${project.groupId}</testability.harness.probeGroupId>
                         <testability.harness.probeArtifactId>testability-probe</testability.harness.probeArtifactId>
                         <testability.harness.probeVersion>${project.version}</testability.harness.probeVersion>
+                        <testability.harness.extensionJar>${project.build.directory}/probe/testability-probe-maven-extension.jar</testability.harness.extensionJar>
                         <!-- Dependencies the examples download, shared between their containers. -->
                         <testability.harness.cacheDir>${rootDir}/target/harness-cache</testability.harness.cacheDir>
                     </systemPropertyVariables>

@@ -1,6 +1,6 @@
 name: Release
 
-# Pushing a tag vX.Y.Z publishes the probe as version X.Y.Z to Maven Central, after the
+# Pushing a tag vX.Y.Z publishes the probe and its Maven extension as version X.Y.Z to Maven Central, after the
 # whole CI passes on the tagged commit. The build files keep their -SNAPSHOT version.
 on:
   push:
@@ -62,9 +62,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v5
 
       # Signs with the CI-only subkey and waits until Central reports the release as published,
-      # so a deployment Central rejects fails this job.
+      # so a deployment Central rejects fails this job. Both artifacts share the version: the
+      # extension adds the probe of its own version.
       - run: >-
-          ./gradlew :probe:publishAndReleaseToMavenCentral
+          ./gradlew :probe:publishAndReleaseToMavenCentral :maven-extension:publishAndReleaseToMavenCentral
           -PreleaseVersion=${{ needs.check-tag.outputs.version }}
           -PmavenCentralDeploymentValidation=PUBLISHED
         env:
@@ -73,3 +74,30 @@ jobs:
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_KEY_ID }}
           ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}
+
+  # Makes the docs on main show the version just released (scripts/update-doc-versions.py).
+  # [skip ci]: the commit changes only docs, and CI already ran on the tagged commit.
+  update-docs:
+    name: Show ${{ needs.check-tag.outputs.version }} in the docs
+    needs: [check-tag, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - run: python3 scripts/update-doc-versions.py ${{ needs.check-tag.outputs.version }}
+
+      - name: Push to main
+        run: |
+          if git diff --quiet; then
+            echo "Docs already show ${{ needs.check-tag.outputs.version }}"
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -qam "Show ${{ needs.check-tag.outputs.version }} in the docs [skip ci]"
+          git push -q origin HEAD:main

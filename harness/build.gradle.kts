@@ -35,6 +35,10 @@ tasks.test {
     systemProperty("testability.harness.probeGroupId", project.group.toString())
     systemProperty("testability.harness.probeArtifactId", "testability-probe")
     systemProperty("testability.harness.probeVersion", project.version.toString())
+    // MavenExtensionTest copies this jar into the container and loads it with -Dmaven.ext.class.path.
+    val extensionJar = project(":maven-extension").tasks.named<Jar>("jar").flatMap { it.archiveFile }
+    inputs.file(extensionJar)
+    systemProperty("testability.harness.extensionJar", extensionJar.get().asFile.absolutePath)
     // Dependencies the examples download, shared between their containers. CI caches it.
     systemProperty(
         "testability.harness.cacheDir",
