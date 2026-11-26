@@ -33,9 +33,40 @@ jobs:
           java-version: 21
 
       - uses: gradle/actions/setup-gradle@v5
+        with:
+          # Dependencies are cached by the gradle-deps steps below, once for all jobs.
+          cache-disabled: true
+
+      # The host builds' dependencies, keyed by the build files. This job downloads them once and
+      # saves them; the example jobs and the release only restore them. Otherwise ~20 parallel jobs
+      # download the same files from Maven Central at once, which gets rate limited (HTTP 429).
+      - id: gradle-deps
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper/dists
+          key: gradle-deps-${{ hashFiles('*.gradle.kts', '*/build.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-deps-
 
       # Unit tests, ArchUnit rules and the Java 8 class-file check, plus the extension and classifier tests.
       - run: ./gradlew :probe:build :maven-extension:build :classifier:test
+
+      # Also everything the example jobs and the release need, such as the harness's dependencies.
+      - if: steps.gradle-deps.outputs.cache-hit != 'true'
+        run: |
+          ./gradlew downloadDependencies
+          ./gradlew --stop
+          find ~/.gradle/caches/modules-2 -name '*.lock' -delete
+          rm -f ~/.gradle/caches/modules-2/gc.properties
+
+      - if: steps.gradle-deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper/dists
+          key: ${{ steps.gradle-deps.outputs.cache-primary-key }}
 
       # One harness test class per example. Derived from the files so new examples are picked up automatically.
       - id: examples
@@ -74,9 +105,31 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-          cache: maven
+
+      # Not setup-java's cache: its key has no fallback, so every POM change downloaded everything
+      # again. This one starts from the previous cache and saves only when the POMs changed.
+      - id: maven-deps
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper
+          key: maven-deps-${{ hashFiles('pom.xml', '*/pom.xml', 'probe/tests/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: maven-deps-
 
       - run: ./mvnw -B verify -DskipHarness
+
+      # This build's own artifacts must never be restored from a cache.
+      - if: steps.maven-deps.outputs.cache-hit != 'true'
+        run: rm -rf ~/.m2/repository/ch/barbulescu
+
+      - if: steps.maven-deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.m2/wrapper
+          key: ${{ steps.maven-deps.outputs.cache-primary-key }}
 
       - if: failure()
         uses: actions/upload-artifact@v4
@@ -105,6 +158,18 @@ jobs:
           java-version: 21
 
       - uses: gradle/actions/setup-gradle@v5
+        with:
+          # Dependencies come from the gradle-deps cache instead (see the build job in ci.yml).
+          cache-disabled: true
+
+      # The host build's dependencies, which the build job saved.
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper/dists
+          key: gradle-deps-${{ hashFiles('*.gradle.kts', '*/build.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-deps-
 
       # Dependencies the example's containers download, kept between runs so 18 parallel
       # jobs don't all fetch them from Maven Central at once (which gets rate limited).

@@ -60,6 +60,18 @@ jobs:
           java-version: 21
 
       - uses: gradle/actions/setup-gradle@v5
+        with:
+          # Dependencies come from the gradle-deps cache instead (see the build job in ci.yml).
+          cache-disabled: true
+
+      # The dependencies CI's build job saved, so publishing downloads nothing.
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper/dists
+          key: gradle-deps-${{ hashFiles('*.gradle.kts', '*/build.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-deps-
 
       # Signs with the CI-only subkey and waits until Central reports the release as published,
       # so a deployment Central rejects fails this job. Both artifacts share the version: the
