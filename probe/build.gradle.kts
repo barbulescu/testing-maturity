@@ -1,3 +1,5 @@
+import org.apache.tools.ant.filters.ReplaceTokens
+
 plugins {
     `java-library`
     jacoco
@@ -45,6 +47,14 @@ dependencies {
     // @MockBean's default attribute values reference org.mockito.Answers, so reading the
     // annotation via reflection needs this on the classpath even without creating a mock.
     testImplementation("org.mockito:mockito-core:5.14.2")
+}
+
+tasks.processResources {
+    // The version each report states (ProbeVersion). Releases take it from the tag.
+    inputs.property("version", project.version.toString())
+    filesMatching("**/probe.properties") {
+        filter<ReplaceTokens>("tokens" to mapOf("project.version" to project.version.toString()))
+    }
 }
 
 tasks.test {

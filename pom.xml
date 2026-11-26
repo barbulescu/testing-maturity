@@ -17,6 +17,7 @@
     <modules>
         <module>probe</module>
         <module>probe/tests</module>
+        <module>maven-extension</module>
         <module>classifier</module>
         <module>harness</module>
     </modules>

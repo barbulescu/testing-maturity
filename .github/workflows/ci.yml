@@ -34,8 +34,8 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
-      # Unit tests, ArchUnit rules and the Java 8 class-file check, plus the classifier tests.
-      - run: ./gradlew :probe:build :classifier:test
+      # Unit tests, ArchUnit rules and the Java 8 class-file check, plus the extension and classifier tests.
+      - run: ./gradlew :probe:build :maven-extension:build :classifier:test
 
       # One harness test class per example. Derived from the files so new examples are picked up automatically.
       - id: examples
@@ -57,6 +57,7 @@ jobs:
           name: build-test-reports
           path: |
             probe/build/reports/tests/
+            maven-extension/build/reports/tests/
             classifier/build/reports/tests/
 
   # The Maven build must stay in sync with the Gradle build. The examples run only with Gradle.
@@ -83,6 +84,7 @@ jobs:
           name: maven-test-reports
           path: |
             probe/tests/target/surefire-reports/
+            maven-extension/target/surefire-reports/
             classifier/target/surefire-reports/
 
   examples:

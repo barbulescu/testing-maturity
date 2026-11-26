@@ -28,6 +28,8 @@ testing-maturity/
 │       ├── junit/   # JUnit Platform TestExecutionListener
 │       ├── mockito/ # Mockito MockCreationListener (loaded only when Mockito is present)
 │       └── spring/  # Spring TestExecutionListener + Boot ApplicationListener
+├── maven-extension/  # shipped too: Maven core extension that adds the probe to every project of a build
+├── gitlab-component/ # GitLab CI/CD components that add the probe to Maven and Gradle builds (copy to GitLab)
 ├── classifier/   # reference CLI that turns a report into a level (not shipped with the probe)
 ├── harness/      # runs every example in a container, with and without the probe (not shipped)
 ├── examples/     # standalone projects, one per scenario
@@ -62,6 +64,27 @@ dependencies {
 ```
 
 Put this in a convention plugin so every project gets it. For repos that use neither a parent POM nor a convention plugin, you can add the dependency with an OpenRewrite `AddDependency` recipe.
+
+### Adding the probe centrally with the Maven extension
+
+`testability-probe-maven-extension` adds the probe to a Maven build without any change to its POMs. Load it as a core extension:
+
+```bash
+mvn verify -Dmaven.ext.class.path=/path/to/testability-probe-maven-extension-0.2.0.jar
+```
+
+After Maven reads the POMs and before it resolves dependencies, the extension adds the probe as a `test`-scoped dependency to every project except `pom` projects. Surefire and Failsafe then see it as if the POM declared it. The probe resolves through the build's own repositories and `settings.xml` mirror. The extension and the probe are released together, and the extension adds the probe of its own version.
+
+| Setting | Effect |
+|---|---|
+| `-Dtestability.probe.skip=true` | Turns the extension off |
+| `-Dtestability.probe.version=<version>` | Adds this probe version instead of the extension's own |
+
+A project that declares the probe itself keeps its own version. If anything goes wrong, the extension logs a warning and the build goes on without the probe. It needs Maven 3.6.3 or newer on Java 8 or newer, and logs `Testability probe <version> added to <n> of <m> projects`.
+
+To add the probe to every project from GitLab CI, for Maven, the Maven wrapper and the Gradle wrapper alike, use the GitLab CI/CD components in [`gitlab-component/`](gitlab-component/README.md).
+
+A build that runs `mvn dependency:analyze` with `failOnWarning` reports the probe as an unused declared dependency. Such a build needs `-Dtestability.probe.skip=true`, or the probe in the analysis's ignore list.
 
 ### Configuration
 
@@ -272,6 +295,8 @@ The harness checks that:
 - `probeErrors` is empty
 - where the test asserts one, the classifier returns the expected level
 
+`MavenExtensionTest` builds `maven-java17-forkcount0-multimodule` (Maven 3.9) and `maven-java8-boot21-springrunner` (Maven 3.6.3 on Java 8) a third way: without the profile, with the probe added only by the Maven extension, the way a central CI job adds it.
+
 The container always exits with status 0. The build's real exit code and the report contents are passed back through markers in the container log.
 
 ## Building and testing
@@ -281,6 +306,7 @@ Requirements: JDK 21 (Gradle toolchains can download it). The harness also needs
 ```bash
 ./gradlew :probe:build          # unit tests, ArchUnit rules, Java 8 class-file check, JaCoCo report
 ./gradlew :probe:publishMavenPublicationToProbeRepoRepository   # publishes to build/probe-repo
+./gradlew :maven-extension:build   # the Maven extension's unit tests
 ./gradlew :classifier:test      # also writes a JaCoCo report
 ./gradlew :harness:test         # publishes the probe first, then runs every example in containers
 ./gradlew :harness:test --tests '*ParallelForks*'   # a single example
@@ -313,7 +339,7 @@ Differences from Gradle:
 
 ### Releasing to Maven Central
 
-Only the probe is published, and only from the Gradle build, with the [vanniktech maven-publish plugin](https://vanniktech.github.io/gradle-maven-publish-plugin/central/) to the [Central Portal](https://central.sonatype.com). The namespace `ch.barbulescu` is verified there through a DNS TXT record on `barbulescu.ch`. Central requires sources and javadoc jars, the POM metadata in `probe/build.gradle.kts`, and GPG signatures. The build signs only when a key is given, so CI and the harness don't need one.
+The probe and the Maven extension are published, both only from the Gradle build, with the [vanniktech maven-publish plugin](https://vanniktech.github.io/gradle-maven-publish-plugin/central/) to the [Central Portal](https://central.sonatype.com). The namespace `ch.barbulescu` is verified there through a DNS TXT record on `barbulescu.ch`. Central requires sources and javadoc jars, the POM metadata in `probe/build.gradle.kts` and `maven-extension/build.gradle.kts`, and GPG signatures. The build signs only when a key is given, so CI and the harness don't need one.
 
 To release, push a tag on `main`:
 
@@ -321,7 +347,7 @@ To release, push a tag on `main`:
 git tag v0.2.0 && git push origin v0.2.0
 ```
 
-`.github/workflows/release.yml` then checks that the tag is `vX.Y.Z` and on `main`, runs the whole CI on the tagged commit, and publishes the probe as `X.Y.Z` with `publishAndReleaseToMavenCentral`. The job waits until Central reports the release as published, so a rejected deployment fails it. A published version can never be changed or deleted. Fix mistakes with a new version.
+`.github/workflows/release.yml` then checks that the tag is `vX.Y.Z` and on `main`, runs the whole CI on the tagged commit, and publishes the probe and the extension as `X.Y.Z` with `publishAndReleaseToMavenCentral`. The job waits until Central reports the release as published, so a rejected deployment fails it. A published version can never be changed or deleted. Fix mistakes with a new version. Last, the workflow runs `scripts/update-doc-versions.py X.Y.Z` on `main` and pushes the result, so this README and the [GitLab component docs](gitlab-component/README.md) show the version just released. The commit says `[skip ci]`, because CI already ran on the tagged commit. The script changes only version numbers next to the probe's coordinates, not examples like the `git tag` command above.
 
 The build files keep a `-SNAPSHOT` version. A release passes `-PreleaseVersion=X.Y.Z`, which the root `build.gradle.kts` applies to every project, so releasing needs no version commits.
 
@@ -353,7 +379,7 @@ ls ~/.m2/repository/ch/barbulescu/testability/testability-probe/0.2.0/
 
 | Job | What it does |
 |---|---|
-| Build probe and classifier | `./gradlew :probe:build :classifier:test` on JDK 21, uploads the JaCoCo reports, and lists the harness test classes |
+| Build probe and classifier | `./gradlew :probe:build :maven-extension:build :classifier:test` on JDK 21, uploads the JaCoCo reports, and lists the harness test classes |
 | Example `<TestClass>` | One job per harness test class, in parallel: `./gradlew :harness:test --tests <TestClass>`. A new example is picked up when its `*Test.java` is added to the harness |
 | Maven build | `scripts/check-maven-sync.py`, then `./mvnw verify -DskipHarness` on JDK 21: probe and classifier tests, and the harness build up to publishing the probe |
 | Coverage badge | Only on pushes to `main`. Generates instruction and branch coverage badges from the JaCoCo CSV reports, pushes them to the `badges` branch, and shows the percentages in the run summary |

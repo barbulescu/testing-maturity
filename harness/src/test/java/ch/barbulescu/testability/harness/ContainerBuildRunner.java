@@ -12,8 +12,10 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -39,6 +41,14 @@ final class ContainerBuildRunner {
 
     static BuildResult run(String image, Path exampleDir, String workdir, String probeReportContainerDir,
             String probeRepoDir, String probeRepoContainerPath, String buildCommand) throws IOException {
+        return run(image, exampleDir, workdir, probeReportContainerDir, probeRepoDir, probeRepoContainerPath,
+                buildCommand, Collections.emptyMap());
+    }
+
+    /** Like the other {@code run}, and also copies each host file in {@code extraFiles} to its container path. */
+    static BuildResult run(String image, Path exampleDir, String workdir, String probeReportContainerDir,
+            String probeRepoDir, String probeRepoContainerPath, String buildCommand,
+            Map<Path, String> extraFiles) throws IOException {
         // The container's own exit code is always 0: OneShotStartupCheckStrategy treats a
         // non-zero exit as a failed container *startup* and retries/throws, which would
         // wrongly fail examples like context-fails whose build is SUPPOSED to fail. The real
@@ -60,6 +70,9 @@ final class ContainerBuildRunner {
             if (probeRepoDir != null) {
                 container.withCopyFileToContainer(
                         MountableFile.forHostPath(Paths.get(probeRepoDir)), probeRepoContainerPath);
+            }
+            for (Map.Entry<Path, String> extraFile : extraFiles.entrySet()) {
+                container.withCopyFileToContainer(MountableFile.forHostPath(extraFile.getKey()), extraFile.getValue());
             }
 
             long startedAt = System.currentTimeMillis();

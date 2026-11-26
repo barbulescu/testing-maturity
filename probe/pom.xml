@@ -79,6 +79,23 @@
     </dependencies>
 
     <build>
+        <resources>
+            <!-- Fills in @project.version@: the version each report states. Only this file, so the
+                 service and spring.factories files are copied as they are. -->
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>**/probe.properties</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <excludes>
+                    <exclude>**/probe.properties</exclude>
+                </excludes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
