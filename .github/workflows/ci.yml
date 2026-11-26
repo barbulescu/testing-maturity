@@ -5,9 +5,13 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # release.yml runs the whole CI before it publishes.
+  workflow_call:
 
+# A fixed name, not github.workflow: when release.yml calls this workflow, github.workflow is
+# "Release", and sharing the caller's concurrency group would cancel the caller.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:

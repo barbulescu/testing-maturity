@@ -3,6 +3,7 @@
 [![CI](https://github.com/barbulescu/testing-maturity/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/barbulescu/testing-maturity/actions/workflows/ci.yml?query=branch%3Amain)
 ![Coverage](https://raw.githubusercontent.com/barbulescu/testing-maturity/badges/jacoco.svg)
 ![Branches](https://raw.githubusercontent.com/barbulescu/testing-maturity/badges/branches.svg)
+[![Maven Central](https://img.shields.io/maven-central/v/ch.barbulescu.testability/testability-probe)](https://central.sonatype.com/artifact/ch.barbulescu.testability/testability-probe)
 
 A test-scoped dependency that records **facts** about how a JVM project's tests run and writes them as a JSON report. It never decides a maturity level itself. The rules that turn facts into levels live in one central place, so they can change without touching hundreds of builds.
 
@@ -18,7 +19,7 @@ The Gradle root project is named `testability-probe`.
 
 ```
 testing-maturity/
-├── .github/      # GitHub Actions CI workflow
+├── .github/      # GitHub Actions workflows: CI, and releases to Maven Central
 ├── probe/        # the shipped jar: Java 8 bytecode, no runtime dependencies
 │   ├── tests/pom.xml   # Maven only: runs the probe's tests (see "Building with Maven")
 │   └── src/main/java/ch/barbulescu/testability/probe/
@@ -314,7 +315,19 @@ Differences from Gradle:
 
 Only the probe is published, and only from the Gradle build, with the [vanniktech maven-publish plugin](https://vanniktech.github.io/gradle-maven-publish-plugin/central/) to the [Central Portal](https://central.sonatype.com). The namespace `ch.barbulescu` is verified there through a DNS TXT record on `barbulescu.ch`. Central requires sources and javadoc jars, the POM metadata in `probe/build.gradle.kts`, and GPG signatures. The build signs only when a key is given, so CI and the harness don't need one.
 
-One-time setup, in `~/.gradle/gradle.properties` (never in the repository):
+To release, push a tag on `main`:
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+`.github/workflows/release.yml` then checks that the tag is `vX.Y.Z` and on `main`, runs the whole CI on the tagged commit, and publishes the probe as `X.Y.Z` with `publishAndReleaseToMavenCentral`. The job waits until Central reports the release as published, so a rejected deployment fails it. A published version can never be changed or deleted. Fix mistakes with a new version.
+
+The build files keep a `-SNAPSHOT` version. A release passes `-PreleaseVersion=X.Y.Z`, which the root `build.gradle.kts` applies to every project, so releasing needs no version commits.
+
+The workflow signs with a CI-only subkey (`1860473F6D68D4AC`) of the signing key `50B97E484C6ACBA1`. GitHub holds only that subkey, under its own random passphrase, so a leak can't be used to sign with or change the primary key. To stop trusting CI, revoke the subkey and upload the key again. The public key must be on `keyserver.ubuntu.com` or `keys.openpgp.org`, where Central looks it up. The repository secrets are `MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD` (a Central Portal user token), and `SIGNING_KEY`, `SIGNING_KEY_ID` and `SIGNING_KEY_PASSWORD` (the armored subkey, its short id and its passphrase).
+
+To publish from a workstation instead, put the token and key in `~/.gradle/gradle.properties` (never in the repository):
 
 ```properties
 mavenCentralUsername=<Central Portal user token name>
@@ -323,24 +336,20 @@ signingInMemoryKeyId=<last 8 hex digits of the signing key id>
 signingInMemoryKeyPassword=<key passphrase>
 ```
 
-The public key must be on `keyserver.ubuntu.com` or `keys.openpgp.org`, where Central looks it up.
-
 ```bash
 export ORG_GRADLE_PROJECT_signingInMemoryKey="$(gpg --export-secret-keys --armor <key id>)"
 
 # Dry run: the .asc signatures, -sources.jar and -javadoc.jar appear next to the jar.
-./gradlew :probe:publishToMavenLocal
-ls ~/.m2/repository/ch/barbulescu/testability/testability-probe/<version>/
+./gradlew :probe:publishToMavenLocal -PreleaseVersion=0.2.0
+ls ~/.m2/repository/ch/barbulescu/testability/testability-probe/0.2.0/
 
-# Release: set a version without -SNAPSHOT in build.gradle.kts and every pom.xml first.
-./gradlew :probe:publishToMavenCentral
+# Uploads without releasing: click Publish (or Drop) under Deployments in the Portal.
+./gradlew :probe:publishToMavenCentral -PreleaseVersion=0.2.0
 ```
-
-`publishToMavenCentral` uploads without releasing. The Portal validates the upload under **Deployments**. Click **Publish** there, or **Drop** to discard it and upload again. Use `publishAndReleaseToMavenCentral` to skip that step. A published version can never be changed or deleted. Fix mistakes with a new version. After a release, tag it (`git tag v<version>`) and move the version to the next `-SNAPSHOT`.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every push to `main`, on pull requests, and on demand:
+`.github/workflows/ci.yml` runs on every push to `main`, on pull requests, on demand, and as the first stage of a release (see [Releasing to Maven Central](#releasing-to-maven-central)):
 
 | Job | What it does |
 |---|---|
