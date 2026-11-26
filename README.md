@@ -384,7 +384,13 @@ ls ~/.m2/repository/ch/barbulescu/testability/testability-probe/0.2.0/
 | Maven build | `scripts/check-maven-sync.py`, then `./mvnw verify -DskipHarness` on JDK 21: probe and classifier tests, and the harness build up to publishing the probe |
 | Coverage badge | Only on pushes to `main`. Generates instruction and branch coverage badges from the JaCoCo CSV reports, pushes them to the `badges` branch, and shows the percentages in the run summary |
 
-Each example job keeps its `build/harness-cache` in the GitHub Actions cache, keyed by the example's test class and the examples' build files. Without it, every job downloads all dependencies from Maven Central at the same time, which gets rate limited (HTTP 429). When a job fails, its Gradle test report is uploaded as an artifact. The badges at the top of this README show the CI status of `main` and the SVGs from the `badges` branch.
+Maven Central rate limits (HTTP 429) when ~20 jobs download the same files at once, so CI downloads each dependency once and caches it in the GitHub Actions cache:
+
+- **The host Gradle builds' dependencies** (`gradle-deps-<hash of the build files>`): the build job restores them, runs `./gradlew downloadDependencies` when the build files changed, and saves them. The example jobs and the release's publish job only restore them. `setup-gradle`'s own cache is off, because it keeps one cache per job: after a dependency change, every example job downloaded it again.
+- **The Maven build's repository** (`maven-deps-<hash of the POMs>`): when the POMs change, it starts from the previous cache, not from an empty repository.
+- **Each example's containers** keep `build/harness-cache`, keyed by the example's test class and the examples' build files.
+
+When a job fails, its Gradle test report is uploaded as an artifact. The badges at the top of this README show the CI status of `main` and the SVGs from the `badges` branch.
 
 ## Not in scope (yet)
 
