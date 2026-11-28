@@ -86,6 +86,9 @@ public final class ProbeRecorder {
     private final AtomicInteger testsUsingDeepStubs = new AtomicInteger();
     private final AtomicInteger testsUsingLenientMocks = new AtomicInteger();
     private final AtomicInteger testsUsingSpies = new AtomicInteger();
+    // Whether tests check calls on their mocks rather than results.
+    private final AtomicInteger testsVerifyingInteractions = new AtomicInteger();
+    private final AtomicInteger testsVerifyingNoMoreInteractions = new AtomicInteger();
     // Tests by how many mocks they used; a test without mocks isn't in any bucket.
     private static final int[] MOCK_COUNT_BUCKET_MINIMUMS = {1, 2, 4, 6, 10};
     private static final String[] MOCK_COUNT_BUCKET_NAMES = {"1", "2-3", "4-5", "6-9", "10+"};
@@ -220,6 +223,19 @@ public final class ProbeRecorder {
             if (usesMocks) {
                 plainTestsUsingMocks.incrementAndGet();
             }
+        }
+    }
+
+    /**
+     * Only tests that actually ran. {@code verificationKinds} combines {@link TestNodeTracker}'s
+     * verification flags. Checking for no more interactions also counts as verifying interactions.
+     */
+    public void recordTestVerifications(int verificationKinds) {
+        if (verificationKinds != 0) {
+            testsVerifyingInteractions.incrementAndGet();
+        }
+        if ((verificationKinds & TestNodeTracker.VERIFIES_NO_MORE_INTERACTIONS) != 0) {
+            testsVerifyingNoMoreInteractions.incrementAndGet();
         }
     }
 
@@ -548,6 +564,7 @@ public final class ProbeRecorder {
 
             writer.name("mocking").beginObject();
             writer.name("mockitoObserved").value(MockitoHook.isObserved());
+            writer.name("mockitoVerificationsObserved").value(MockitoHook.isVerificationObserved());
             writer.name("mockkObserved").value(MockKObserver.isObserved());
             writer.name("plainTests").value(plainTests.get());
             writer.name("plainTestsUsingMocks").value(plainTestsUsingMocks.get());
@@ -557,6 +574,8 @@ public final class ProbeRecorder {
             writer.name("testsUsingDeepStubs").value(testsUsingDeepStubs.get());
             writer.name("testsUsingLenientMocks").value(testsUsingLenientMocks.get());
             writer.name("testsUsingSpies").value(testsUsingSpies.get());
+            writer.name("testsVerifyingInteractions").value(testsVerifyingInteractions.get());
+            writer.name("testsVerifyingNoMoreInteractions").value(testsVerifyingNoMoreInteractions.get());
             writer.name("testsByMockCount").beginObject();
             for (int i = 0; i < MOCK_COUNT_BUCKET_NAMES.length; i++) {
                 writer.name(MOCK_COUNT_BUCKET_NAMES[i]).value(testsByMockCount[i].get());

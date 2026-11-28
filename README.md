@@ -105,9 +105,10 @@ In CI, the probe reads these GitLab variables and adds them to the report so it 
 
 | Hook | Registered via | Records |
 |---|---|---|
-| `junit.ProbeTestExecutionListener` | `META-INF/services/org.junit.platform.launcher.TestExecutionListener` | Test counts per engine (from the `[engine:…]` segment of the unique ID), pass/fail/abort/skip, wall time, the exception types failed tests threw, flaky tests, parameterized, dynamic and nested tests (from the other segments of the unique ID), tags, and time limits: see `tests.failures`, `tests.flakyTests`, `tests.style`, `tests.byTag` and `tests.timeoutClasses` below |
+| `junit.ProbeTestExecutionListener` | `META-INF/services/org.junit.platform.launcher.TestExecutionListener` | Test counts per engine (from the `[engine:…]` segment of the unique ID), pass/fail/abort/skip, wall time, the exception types failed tests threw, flaky tests, parameterized, dynamic and nested tests (from the other segments of the unique ID), tags, time limits, and calls to `verifyNoMoreInteractions` and the like in the test's bytecode: see `tests.failures`, `tests.flakyTests`, `tests.style`, `tests.byTag` and `tests.timeoutClasses` below, and [Interaction checks](#interaction-checks) |
 | `spring.ProbeSpringTestExecutionListener` | `META-INF/spring.factories` | For each Spring test class: JUnit 4 (`@RunWith`) or 5, `@SpringBootTest` (and its `webEnvironment`) or a slice annotation (`org.springframework.boot.test.autoconfigure.*`), how many fields are annotated `@MockBean`/`@MockitoBean`, and how it wires in infrastructure: `@AutoConfigureTestDatabase`, `@ServiceConnection`, `@DynamicPropertySource`, `@EmbeddedKafka`. Also counts each distinct application context the tests ran against, with or without Spring Boot |
 | `mockito.ProbeMockCreationListener` | Mockito's `MockitoFramework.addListener`, installed by the JUnit listener on each thread that runs tests | Every mock or spy Mockito creates (and `mockStatic` on Mockito 3.5+), attributed to the test that is running on that thread |
+| `mockito.ProbeVerificationListener` | Installed with the listener above, on Mockito versions that have `VerificationListener` (added after 2.1) | Every `verify(...)` and `inOrder.verify(...)`, attributed the same way: see [Interaction checks](#interaction-checks) |
 | `core.MockKObserver` | Called by the JUnit listener at every test and container start and finish | MockK mocks (MockK has no listener API): see [MockK](#mockk) |
 | `spring.ProbeSpringApplicationListener` | `META-INF/spring.factories` | Spring Boot startup time, from `ApplicationStartingEvent` to `ApplicationReadyEvent` or `ApplicationFailedEvent`. On failure it records the root-cause exception **type**, never the message |
 
@@ -144,6 +145,19 @@ The two kinds of mocks are also counted apart, because they point at different p
 | `classesWithClassLevelMocks` | Test classes with at least one test that used class-level mocks |
 
 A Spring test's class-level count is at least the number of mock and spy beans its class declares, since a context from Spring's cache creates none while the test runs.
+
+#### Interaction checks
+
+Next to how many mocks a test uses, the report shows whether it checks results or calls:
+
+| Field | Counts tests that | Detected by |
+|---|---|---|
+| `testsVerifyingInteractions` | check calls on their mocks: `verify(...)`, `inOrder.verify(...)`, BDD's `then(mock).should()`, or one of the checks below. A test with mocks that verifies nothing uses them as stubs and checks its results | Mockito's `VerificationListener`, attributed like mocks. It also sees a `verify` that fails |
+| `testsVerifyingNoMoreInteractions` | check that their mocks had no calls other than those verified: `verifyNoMoreInteractions`, `verifyNoInteractions`, `verifyZeroInteractions`, `inOrder.verifyNoMoreInteractions()`, BDD's `shouldHaveNoMoreInteractions()`/`shouldHaveNoInteractions()`, their mockito-kotlin forms, and `verify(mock, only())`. Such a test pins the implementation: any new call breaks it, even when the result stays right | `only()` by the verification listener. The others never reach a Mockito listener, so the probe reads the test's bytecode |
+
+The bytecode is read once per test class, with no bytecode library. A test counts when its method, or a `@BeforeEach`/`@AfterEach` (JUnit 4: `@Before`/`@After`) that runs for it, calls one of those methods. Calls are followed into the methods of the test class, its base classes and the classes enclosing a `@Nested` class, and into the lambdas javac compiles from them. A call made from another class, such as a shared test helper, or through a method reference (`Mockito::verifyNoMoreInteractions`) isn't seen. Neither is a check in a `@BeforeAll` or `@AfterAll`, nor any check made with MockK.
+
+`mockitoVerificationsObserved` is `false` when the probe couldn't install the verification listener (a Mockito older than `VerificationListener`): then `testsVerifyingInteractions` misses every plain `verify`.
 
 #### MockK
 
@@ -205,10 +219,11 @@ MockK has no listener API like Mockito's, so the probe finds MockK mocks after t
               "bootTestsByWebEnvironment": { "MOCK": 3, "RANDOM_PORT": 1, "DEFINED_PORT": 0, "NONE": 0 },
               "testDatabaseReplacedClasses": 2, "serviceConnectionClasses": 1,
               "dynamicPropertySourceClasses": 1, "embeddedKafkaClasses": 0 },
-  "mocking": { "mockitoObserved": true, "mockkObserved": false, "plainTests": 25, "plainTestsUsingMocks": 9,
+  "mocking": { "mockitoObserved": true, "mockitoVerificationsObserved": true, "mockkObserved": false, "plainTests": 25, "plainTestsUsingMocks": 9,
                "springTests": 16, "springTestsUsingMocks": 11,
                "testsUsingStaticMocks": 2, "testsUsingDeepStubs": 1,
                "testsUsingLenientMocks": 3, "testsUsingSpies": 4,
+               "testsVerifyingInteractions": 14, "testsVerifyingNoMoreInteractions": 3,
                "testsByMockCount": { "1": 9, "2-3": 6, "4-5": 3, "6-9": 1, "10+": 0 },
                "maxMocksPerTest": 7,
                "testsByOwnMockCount": { "1": 8, "2-3": 4, "4-5": 1, "6-9": 0, "10+": 0 },
@@ -318,6 +333,7 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java17-mocking` | Mock usage counted per test and split between plain and Spring tests: `@Mock` via `MockitoExtension`, an inline mock in one of two methods, a field initializer in a class of three tests (one mock each), a `@BeforeAll` mock shared by two tests, `@MockitoBean` |
 | `gradle-java17-mockk` | Kotlin tests with MockK, counted like Mockito's: an inline mock, a field initializer, `@MockK` fields, `mockkObject` undone in `@AfterEach`, `spyk`, a chain stubbed in one go, and a `PER_CLASS` instance whose mock both tests share. `-PmockkVersion=...` runs it on another MockK version |
 | `gradle-java17-mock-smells` | Mockito smells counted per test, each next to a test without it: static mocking, deep stubs, lenient mocks, spies, and a test with six mocks |
+| `gradle-java17-interaction-tests` | Tests that check results next to tests that check calls: `verify`, and `verifyNoMoreInteractions`, `verifyNoInteractions` and `only()`, which pin every call. Pinning is also found in a Jupiter `@AfterEach` through a helper and in a JUnit 4 `@After` |
 | `gradle-java17-spring-smells` | Spring without Boot: `@DirtiesContext` on a class and on a method, next to a class without it |
 | `gradle-java17-mock-everything` | `@MockBean` fields counted on a `@SpringBootTest` that doesn't test any real code |
 | `gradle-java17-disabled-tests` | `@Disabled` on a method, a class and a nested class, disabled parameterized and repeated tests, Vintage `@Ignore` on a method and a class, and a failing assumption: all disabled tests counted as skipped |

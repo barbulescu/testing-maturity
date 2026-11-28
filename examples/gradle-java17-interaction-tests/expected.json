@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "buildTool": "GRADLE",
+  "tests": {
+    "succeeded": 9,
+    "failed": 0
+  },
+  "mocking": {
+    "mockitoObserved": true,
+    "mockitoVerificationsObserved": true,
+    "plainTests": 9,
+    "plainTestsUsingMocks": 9,
+    "testsVerifyingInteractions": 7,
+    "testsVerifyingNoMoreInteractions": 6
+  },
+  "probeErrors": []
+}
