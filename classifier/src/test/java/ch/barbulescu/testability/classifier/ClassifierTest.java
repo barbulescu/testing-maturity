@@ -48,10 +48,26 @@ class ClassifierTest {
     }
 
     @Test
-    void testcontainersPresenceIsLevelThree() throws IOException {
+    void testcontainersPresenceIsLevelThreeInReportsWithoutUse() throws IOException {
         assertEquals(Level.INTEGRATION_AWARE, Classifier.classify(json(
                 "{\"tests\":{\"succeeded\":1,\"failed\":0,\"skipped\":0},"
                         + "\"onClasspath\":{\"testcontainers\":true,\"wiremock\":false},\"probeErrors\":[]}")));
+    }
+
+    @Test
+    void testcontainersUseIsLevelThree() throws IOException {
+        assertEquals(Level.INTEGRATION_AWARE, Classifier.classify(json(
+                "{\"tests\":{\"succeeded\":1,\"failed\":0,\"skipped\":0},"
+                        + "\"onClasspath\":{\"testcontainers\":true,\"wiremock\":false},"
+                        + "\"used\":{\"testcontainers\":true},\"probeErrors\":[]}")));
+    }
+
+    @Test
+    void testcontainersPresentButUnusedIsLevelTwo() throws IOException {
+        assertEquals(Level.TESTS_PASS_CLEANLY, Classifier.classify(json(
+                "{\"tests\":{\"succeeded\":1,\"failed\":0,\"skipped\":0},"
+                        + "\"onClasspath\":{\"testcontainers\":true,\"wiremock\":false},"
+                        + "\"used\":{\"testcontainers\":false},\"probeErrors\":[]}")));
     }
 
     @Test

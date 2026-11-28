@@ -14,17 +14,22 @@ class ClasspathPresenceTest {
     void detectsWhatIsActuallyOnThisTestClasspath() {
         Map<String, Boolean> presence = ClasspathPresence.detect(getClass().getClassLoader());
 
-        // junit:junit, mockito-core and spring-boot-test are real test dependencies of the
-        // probe module itself, added for the spring package's own fixture-based tests.
+        // junit:junit, mockito-core, spring-boot-test and spring-boot-testcontainers are real
+        // test dependencies of the probe module itself, added for its own fixture-based tests.
         assertTrue(presence.get("junit4"));
         // Surefire adds the Vintage engine to the test classpath because junit:junit is there; Gradle doesn't.
         boolean maven = "MAVEN".equals(System.getProperty("testability.probe.test.buildTool"));
         assertEquals(maven, presence.get("vintage"));
-        assertFalse(presence.get("testcontainers"));
+        assertTrue(presence.get("testcontainers"));
         assertFalse(presence.get("wiremock"));
         assertTrue(presence.get("mockito"));
         assertFalse(presence.get("mockk"));
         assertTrue(presence.get("springBoot"));
+        assertFalse(presence.get("h2"));
+        assertFalse(presence.get("hsqldb"));
+        assertFalse(presence.get("derby"));
+        assertFalse(presence.get("embeddedMongo"));
+        assertFalse(presence.get("embeddedKafka"));
     }
 
     @Test

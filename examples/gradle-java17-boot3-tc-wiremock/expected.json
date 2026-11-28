@@ -8,6 +8,9 @@
     "mockito": true,
     "springBoot": true
   },
+  "used": {
+    "testcontainers": false
+  },
   "tests": {
     "byEngine": {
       "junit-jupiter": 2

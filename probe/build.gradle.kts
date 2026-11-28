@@ -43,6 +43,10 @@ dependencies {
     // spring-boot-test pulls a matching spring-test transitively.
     testImplementation("org.springframework.boot:spring-boot-test:3.5.16")
     testImplementation("org.springframework.boot:spring-boot-test-autoconfigure:3.5.16")
+    // @ServiceConnection fixtures, and a real DockerClientFactory for TestcontainersUsageTest.
+    testImplementation("org.springframework.boot:spring-boot-testcontainers:3.5.16")
+    // @AutoConfigureTestDatabase's attributes reference spring-jdbc types.
+    testImplementation("org.springframework:spring-jdbc:6.2.19")
     testImplementation("junit:junit:4.13.2")
     // @MockBean's default attribute values reference org.mockito.Answers, so reading the
     // annotation via reflection needs this on the classpath even without creating a mock.
