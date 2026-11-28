@@ -23,8 +23,8 @@ testing-maturity/
 ├── probe/        # the shipped jar: Java 8 bytecode, no runtime dependencies
 │   ├── tests/pom.xml   # Maven only: runs the probe's tests (see "Building with Maven")
 │   └── src/main/java/ch/barbulescu/testability/probe/
-│       ├── core/    # recorder, Safe, JSON writer, file sink, CI context, module identity, build tool
-│       │            # and classpath detection, test-node tracking, the Mockito bridge and the MockK observer
+│       ├── core/    # recorder, Safe, JSON writer, file sink, CI context, module identity, build tool,
+│       │            # classpath and coverage-tool detection, test-node tracking, the Mockito bridge and the MockK observer
 │       ├── junit/   # JUnit Platform TestExecutionListener
 │       ├── mockito/ # Mockito MockCreationListener (loaded only when Mockito is present)
 │       └── spring/  # Spring TestExecutionListener + Boot ApplicationListener
@@ -184,6 +184,7 @@ MockK has no listener API like Mockito's, so the probe finds MockK mocks after t
   "onClasspath": { "junit4": true, "vintage": false, "testcontainers": true,
                    "wiremock": false, "mockito": true, "mockk": false, "springBoot": true },
   "versions": { "springBoot": "2.7.18", "junitPlatform": "1.8.2" },
+  "coverage": { "jacoco": true },
   "tests": { "byEngine": { "junit-jupiter": 41 }, "succeeded": 40,
              "failed": 1, "skipped": 0, "durationMs": 18230,
              "fixedOrderClasses": 1,
@@ -210,6 +211,7 @@ MockK has no listener API like Mockito's, so the probe finds MockK mocks after t
 How to read it:
 
 - `onClasspath` shows which libraries are **present** on the classpath, not whether any test used them. The probe checks with `Class.forName(name, false, loader)`, so no class is initialized.
+- `coverage.jacoco` says whether JaCoCo measured coverage in this test JVM, not how much code the tests cover. It's `true` when JaCoCo's runtime (`org.jacoco.agent.rt.RT`) can be loaded. That's the case when its agent is attached (the Gradle `jacoco` plugin, `jacoco-maven-plugin`'s `prepare-agent`, or a `-javaagent` in `JAVA_TOOL_OPTIONS`) and with offline instrumentation. It's `false` when the build configures JaCoCo but the agent never reaches the test JVM, for example when Surefire's `argLine` doesn't include `@{argLine}`, or with `forkCount=0`. The coverage numbers themselves are in the build's own JaCoCo report. Other coverage tools aren't detected.
 - `tests`, `spring` and `bootStarts` are left out when their adapter never ran. A missing `spring` section means no Spring test listener fired. It does not mean there were zero Spring tests. For example, a custom `@TestExecutionListeners` can replace the default listeners, and then the probe's listener never runs.
 - `spring.contextsLoaded` counts distinct application contexts, not test classes. Test classes that share a context through Spring's context cache count it once. A context recreated after `@DirtiesContext` counts again, and every level of a `@ContextHierarchy` counts. `spring.plainContextsLoaded` is the subset that Spring Boot did not start, for example contexts from `@ContextConfiguration` or `@SpringJUnitConfig`. A context that fails to load is not counted here. With Boot, a failed load shows up in `bootStarts.failed`. Without Boot, it shows up only as failed tests.
 - `spring.dirtiesContextClasses` counts Spring test classes annotated `@DirtiesContext`, including through a base class, and `spring.dirtiesContextMethods` counts test methods annotated with it. Each one throws away a context that the following tests then have to rebuild, which is a common reason for a high `contextsLoaded`.
@@ -276,6 +278,7 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java17-mock-everything` | `@MockBean` fields counted on a `@SpringBootTest` that doesn't test any real code |
 | `gradle-java17-disabled-tests` | `@Disabled` on a method, a class and a nested class, disabled parameterized and repeated tests, Vintage `@Ignore` on a method and a class, and a failing assumption: all disabled tests counted as skipped |
 | `gradle-java17-junit-smells` | JUnit-level smells for Jupiter and Vintage: a fixed test order (`@TestMethodOrder`, `@FixMethodOrder`) next to random order and an independent test, and a test that sleeps for over a second |
+| `gradle-java17-jacoco` | The Gradle `jacoco` plugin attaches JaCoCo's agent: `coverage.jacoco` is `true`. `gradle-java17-junit-smells` and `maven-java11-boot27-vintage` expect `false` |
 | `gradle-java17-custom-listeners` | `@TestExecutionListeners` replaces the defaults: `spring` section absent, `tests` section present |
 | `maven-java17-forkcount0-multimodule` | Tests run inside the Maven JVM: one report per module, each with the correct `moduleDir` |
 | `gradle-java17-parallel-forks` | `maxParallelForks = 2`: two reports for the same module with different `workerId`s |

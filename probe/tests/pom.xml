@@ -86,9 +86,10 @@
                     <!-- Gradle runs these tests on its JDK 21 toolchain, Maven on the JDK it runs on.
                          Lets Mockito's Byte Buddy mock on JDKs newer than it officially supports. -->
                     <argLine>@{argLine} -Dnet.bytebuddy.experimental=true</argLine>
-                    <!-- BuildToolTest and ClasspathPresenceTest check the real test classpath. -->
+                    <!-- BuildToolTest, ClasspathPresenceTest and CoverageToolTest check the real test JVM. -->
                     <systemPropertyVariables>
                         <testability.probe.test.buildTool>MAVEN</testability.probe.test.buildTool>
+                        <testability.probe.test.jacoco>true</testability.probe.test.jacoco>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

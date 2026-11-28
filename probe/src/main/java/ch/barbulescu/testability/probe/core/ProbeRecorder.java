@@ -354,6 +354,13 @@ public final class ProbeRecorder {
         }
         writer.endObject();
 
+        Map<String, Boolean> coverage = safely(CoverageTool::detect, Collections.emptyMap());
+        writer.name("coverage").beginObject();
+        for (Map.Entry<String, Boolean> entry : coverage.entrySet()) {
+            writer.name(entry.getKey()).value(entry.getValue());
+        }
+        writer.endObject();
+
         if (testsAdapterUsed.get()) {
             writer.name("tests").beginObject();
             writer.name("byEngine").beginObject();
