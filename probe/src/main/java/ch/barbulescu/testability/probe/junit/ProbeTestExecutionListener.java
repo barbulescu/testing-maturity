@@ -54,6 +54,8 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
             recorder.ensureShutdownHookRegistered();
             recorder.recordTestPlanStarted();
         });
+        Safe.run(() -> ProbeRecorder.getInstance().recordParallelConfiguration(
+                ParallelExecution.isEnabled(testPlan), ParallelExecution.modeDefault(testPlan)));
     }
 
     /** Called on the thread that runs the node, which is what makes mock attribution work. */
@@ -62,6 +64,9 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
         Safe.run(() -> {
             if (testIdentifier.isTest()) {
                 testStartNanos.put(testIdentifier.getUniqueId(), System.nanoTime());
+                // The tests started and not yet finished, this one included. Plans in one JVM
+                // run one after another, so a plan's own tests are all that can run at once.
+                ProbeRecorder.getInstance().recordConcurrentTests(testStartNanos.size());
             }
         });
         Safe.run(() -> {

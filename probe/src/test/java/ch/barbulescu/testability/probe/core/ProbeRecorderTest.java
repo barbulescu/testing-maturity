@@ -116,4 +116,22 @@ class ProbeRecorderTest {
         assertTrue(json.contains("\"recorder-test-integration\":1"), json);
         assertTrue(json.contains("\"style\":{\"parameterized\":"), json);
     }
+
+    @Test
+    void parallelExecutionKeepsTheMostTestsSeenRunningAtOnce() {
+        ProbeRecorder recorder = ProbeRecorder.getInstance();
+        recorder.recordTestPlanStarted();
+        recorder.recordParallelConfiguration(true, "concurrent");
+        recorder.recordParallelConfiguration(false, null);
+        recorder.recordConcurrentTests(1);
+        recorder.recordConcurrentTests(3);
+        recorder.recordConcurrentTests(2);
+
+        AtomicReference<String> report = new AtomicReference<>();
+        recorder.writeReport((fileName, json) -> report.set(json));
+
+        String json = report.get();
+        assertTrue(json.contains("\"parallel\":{\"enabled\":true,\"modeDefault\":\"concurrent\",\"maxConcurrentTests\":"), json);
+        assertFalse(json.contains("\"maxConcurrentTests\":1}") || json.contains("\"maxConcurrentTests\":2}"), json);
+    }
 }

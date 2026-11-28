@@ -3,8 +3,6 @@ package ch.barbulescu.testability.probe.junit;
 import org.junit.platform.launcher.TestPlan;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
-import java.util.Optional;
 
 /**
  * Whether JUnit Jupiter creates one instance for all tests of a class: {@code @TestInstance(PER_CLASS)}
@@ -31,30 +29,13 @@ final class TestInstanceLifecycle {
                 }
             }
         }
-        return "per_class".equalsIgnoreCase(defaultLifecycle(testPlan));
+        return "per_class".equalsIgnoreCase(ConfigurationParameters.get(testPlan, DEFAULT_LIFECYCLE));
     }
 
     private static Object valueOf(Annotation annotation) {
         try {
             return annotation.annotationType().getMethod("value").invoke(annotation);
         } catch (ReflectiveOperationException e) {
-            return null;
-        }
-    }
-
-    /** {@code TestPlan.getConfigurationParameters()} exists since JUnit Platform 1.8. */
-    private static String defaultLifecycle(TestPlan testPlan) {
-        if (testPlan == null) {
-            return null;
-        }
-        try {
-            // Looked up on the public types: the runtime classes may not be public.
-            Method getConfigurationParameters = TestPlan.class.getMethod("getConfigurationParameters");
-            Object parameters = getConfigurationParameters.invoke(testPlan);
-            Object value = getConfigurationParameters.getReturnType().getMethod("get", String.class)
-                    .invoke(parameters, DEFAULT_LIFECYCLE);
-            return value instanceof Optional ? ((Optional<?>) value).map(String::valueOf).orElse(null) : null;
-        } catch (ReflectiveOperationException | RuntimeException e) {
             return null;
         }
     }
