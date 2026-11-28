@@ -72,6 +72,7 @@ public final class ProbeRecorder {
     private final AtomicInteger mockBeanFields = new AtomicInteger();
     private final AtomicInteger contextsLoaded = new AtomicInteger();
     private final AtomicInteger plainContextsLoaded = new AtomicInteger();
+    private final AtomicLong contextLoadNanos = new AtomicLong();
     private final AtomicInteger dirtiesContextClasses = new AtomicInteger();
     private final AtomicInteger dirtiesContextMethods = new AtomicInteger();
     // How Spring tests reach the application and its infrastructure
@@ -396,6 +397,14 @@ public final class ProbeRecorder {
         }
     }
 
+    /**
+     * Time spent loading contexts that weren't cached, once per load. A
+     * {@code @ContextHierarchy} load counts once, whatever number of levels it creates.
+     */
+    public void recordSpringContextLoadTime(long nanos) {
+        contextLoadNanos.addAndGet(nanos);
+    }
+
     public void recordBootStartSucceeded(Long durationMs) {
         bootStartsAdapterUsed.set(true);
         bootStartsSucceeded.incrementAndGet();
@@ -629,6 +638,7 @@ public final class ProbeRecorder {
             writer.name("mockBeanFields").value(mockBeanFields.get());
             writer.name("contextsLoaded").value(contextsLoaded.get());
             writer.name("plainContextsLoaded").value(plainContextsLoaded.get());
+            writer.name("contextLoadMs").value(contextLoadNanos.get() / 1_000_000);
             writer.name("dirtiesContextClasses").value(dirtiesContextClasses.get());
             writer.name("dirtiesContextMethods").value(dirtiesContextMethods.get());
             writer.name("bootTestsByWebEnvironment").beginObject();

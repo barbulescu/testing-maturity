@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -133,5 +135,20 @@ class ProbeRecorderTest {
         String json = report.get();
         assertTrue(json.contains("\"parallel\":{\"enabled\":true,\"modeDefault\":\"concurrent\",\"maxConcurrentTests\":"), json);
         assertFalse(json.contains("\"maxConcurrentTests\":1}") || json.contains("\"maxConcurrentTests\":2}"), json);
+    }
+
+    @Test
+    void contextLoadTimesAddUp() {
+        ProbeRecorder recorder = ProbeRecorder.getInstance();
+        recorder.recordSpringContextLoaded(true);
+        recorder.recordSpringContextLoadTime(1_500_000_000L);
+        recorder.recordSpringContextLoadTime(700_000_000L);
+
+        AtomicReference<String> report = new AtomicReference<>();
+        recorder.writeReport((fileName, json) -> report.set(json));
+
+        Matcher loadMs = Pattern.compile("\"contextLoadMs\":(\\d+)").matcher(report.get());
+        assertTrue(loadMs.find(), report.get());
+        assertTrue(Long.parseLong(loadMs.group(1)) >= 2200, report.get());
     }
 }

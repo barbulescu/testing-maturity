@@ -4,10 +4,9 @@ import ch.barbulescu.testability.probe.core.ProbeRecorder;
 import ch.barbulescu.testability.probe.core.Safe;
 import ch.barbulescu.testability.probe.core.TestNodeTracker;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.Ordered;
 import org.springframework.test.context.TestContext;
 import org.springframework.test.context.support.AbstractTestExecutionListener;
-
-import java.lang.reflect.Method;
 
 /**
  * Registered via {@code META-INF/spring.factories}; Spring appends this to
@@ -39,39 +38,30 @@ public final class ProbeSpringTestExecutionListener extends AbstractTestExecutio
     }
 
     /**
-     * This listener has the default lowest precedence, so it runs after
-     * {@code DependencyInjectionTestExecutionListener} has already loaded
-     * (or fetched from the cache) the context - looking at it here never
-     * triggers a load of its own. If loading failed, that listener threw
-     * and this method is never reached.
+     * Runs first, so this call is the one that loads the context when it
+     * isn't cached yet, and its duration is the load time. Without the probe,
+     * {@code DependencyInjectionTestExecutionListener} makes the same call a
+     * little later in this phase. A cache hit takes next to nothing and
+     * finds no new context, so it adds no time.
      */
     @Override
-    public void prepareTestInstance(TestContext testContext) {
-        Safe.run(() -> {
-            ApplicationContext context = loadedContextOrNull(testContext);
-            if (context != null) {
-                ProbeRecorder recorder = ProbeRecorder.getInstance();
-                ContextTracker.shared().observe(context, recorder::recordSpringContextLoaded);
-            }
-        });
+    public int getOrder() {
+        return Ordered.HIGHEST_PRECEDENCE;
     }
 
-    private static ApplicationContext loadedContextOrNull(TestContext testContext) {
-        // hasApplicationContext() only exists since Spring 5.2; on older versions, fall back to
-        // getApplicationContext(), which by this point is a cache hit.
-        Method hasApplicationContext;
-        try {
-            hasApplicationContext = testContext.getClass().getMethod("hasApplicationContext");
-        } catch (NoSuchMethodException e) {
-            return testContext.getApplicationContext();
-        }
-        try {
-            if (!Boolean.TRUE.equals(hasApplicationContext.invoke(testContext))) {
-                return null;
+    @Override
+    public void prepareTestInstance(TestContext testContext) {
+        long startNanos = System.nanoTime();
+        // Outside Safe: a context that fails to load must fail the test with the same exception
+        // as without the probe. Swallowing it would make Spring try again, and since 6.1 that
+        // second try reports the failure threshold instead of the cause.
+        ApplicationContext context = testContext.getApplicationContext();
+        long loadNanos = System.nanoTime() - startNanos;
+        Safe.run(() -> {
+            ProbeRecorder recorder = ProbeRecorder.getInstance();
+            if (ContextTracker.shared().observe(context, recorder::recordSpringContextLoaded)) {
+                recorder.recordSpringContextLoadTime(loadNanos);
             }
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException(e);
-        }
-        return testContext.getApplicationContext();
+        });
     }
 }

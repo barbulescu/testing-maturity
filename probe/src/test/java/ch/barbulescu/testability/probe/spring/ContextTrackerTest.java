@@ -8,6 +8,8 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ContextTrackerTest {
 
@@ -30,6 +32,17 @@ class ContextTrackerTest {
         tracker.observe(new GenericApplicationContext(), plainFlags::add);
 
         assertEquals(Arrays.asList(true, true), plainFlags);
+    }
+
+    @Test
+    void observeSaysWhetherTheContextWasNew() {
+        GenericApplicationContext parent = new GenericApplicationContext();
+        GenericApplicationContext child = new GenericApplicationContext(parent);
+
+        assertTrue(tracker.observe(parent, plainFlags::add));
+        // the cached parent is old, but the child is new
+        assertTrue(tracker.observe(child, plainFlags::add));
+        assertFalse(tracker.observe(child, plainFlags::add));
     }
 
     @Test
