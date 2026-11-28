@@ -3,6 +3,8 @@ package ch.barbulescu.testability.probe.core;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -97,5 +99,21 @@ class ProbeRecorderTest {
         assertTrue(json.contains("\"" + RecorderTestBreakage.class.getName() + "\":2"), json);
         assertTrue(json.contains("\"" + RecorderTestAssertion.class.getName() + "\":1"), json);
         assertFalse(json.contains("secret-"), "messages must never reach the report:\n" + json);
+    }
+
+    @Test
+    void testShapesAndTagsAreCounted() {
+        ProbeRecorder recorder = ProbeRecorder.getInstance();
+        recorder.recordTestPlanStarted();
+        recorder.recordTestTags(Arrays.asList("recorder-test-slow", "recorder-test-integration"));
+        recorder.recordTestTags(Collections.singletonList("recorder-test-slow"));
+
+        AtomicReference<String> report = new AtomicReference<>();
+        recorder.writeReport((fileName, json) -> report.set(json));
+
+        String json = report.get();
+        assertTrue(json.contains("\"recorder-test-slow\":2"), json);
+        assertTrue(json.contains("\"recorder-test-integration\":1"), json);
+        assertTrue(json.contains("\"style\":{\"parameterized\":"), json);
     }
 }

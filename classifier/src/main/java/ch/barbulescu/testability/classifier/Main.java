@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Set;
 
 public final class Main {
 
@@ -22,7 +23,15 @@ public final class Main {
         for (String path : args) {
             JsonNode report = mapper.readTree(new File(path));
             Level level = Classifier.classify(report);
-            System.out.println(path + ": LEVEL_" + level.number() + " (" + level.description() + ")");
+            StringBuilder line = new StringBuilder(path + ": LEVEL_" + level.number() + " (" + level.description() + ")");
+            Set<TestStyle> styles = Classifier.styles(report);
+            if (!styles.isEmpty()) {
+                line.append(" styles:");
+                for (TestStyle style : styles) {
+                    line.append(' ').append(style.label());
+                }
+            }
+            System.out.println(line);
         }
     }
 }

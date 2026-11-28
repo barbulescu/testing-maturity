@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "buildTool": "GRADLE",
+  "tests": {
+    "byEngine": {
+      "junit-jupiter": 14,
+      "junit-vintage": 2,
+      "jqwik": 2,
+      "archunit": 1
+    },
+    "succeeded": 19,
+    "failed": 0,
+    "skipped": 0,
+    "repeatedTestMethods": 1,
+    "timeoutClasses": 2,
+    "timeoutMethods": 2,
+    "style": {
+      "parameterized": 5,
+      "dynamic": 3,
+      "nested": 3
+    },
+    "byTag": {
+      "ch.barbulescu.testability.examples.styles.SlowTests": 1,
+      "fast": 5,
+      "integration": 3,
+      "slow": 1
+    }
+  },
+  "probeErrors": []
+}

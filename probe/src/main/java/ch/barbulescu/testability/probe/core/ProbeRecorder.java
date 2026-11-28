@@ -1,6 +1,7 @@
 package ch.barbulescu.testability.probe.core;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,14 @@ public final class ProbeRecorder {
     private final AtomicInteger flakyTests = new AtomicInteger();
     private final AtomicInteger retryingTestMethods = new AtomicInteger();
     private final AtomicInteger repeatedTestMethods = new AtomicInteger();
+    private final AtomicInteger timeoutClasses = new AtomicInteger();
+    private final AtomicInteger timeoutMethods = new AtomicInteger();
+    // Finished tests by where they sit, from the segments of their unique IDs.
+    private final AtomicInteger parameterizedTests = new AtomicInteger();
+    private final AtomicInteger dynamicTests = new AtomicInteger();
+    private final AtomicInteger nestedTests = new AtomicInteger();
+    // Finished tests by tag: a test counts once for each tag it or its containers carry.
+    private final Map<String, AtomicInteger> testsByTag = new ConcurrentHashMap<>();
     // Finished tests by how long they took, from start to finish event.
     private static final long[] DURATION_BUCKET_MINIMUMS_MS = {0, 100, 1_000, 10_000};
     private static final String[] DURATION_BUCKET_NAMES = {"<100ms", "100ms-1s", "1s-10s", "10s+"};
@@ -256,6 +265,39 @@ public final class ProbeRecorder {
     /** A {@code @RepeatedTest} method. */
     public void recordRepeatedTestMethod() {
         repeatedTestMethods.incrementAndGet();
+    }
+
+    /** A test class with a time limit: Jupiter's {@code @Timeout}, or a JUnit 4 {@code Timeout} rule. */
+    public void recordTimeoutClass() {
+        timeoutClasses.incrementAndGet();
+    }
+
+    /** A test method with a time limit: Jupiter's {@code @Timeout}, or JUnit 4's {@code @Test(timeout = ...)}. */
+    public void recordTimeoutMethod() {
+        timeoutMethods.incrementAndGet();
+    }
+
+    /**
+     * Where a finished test sits: an invocation of a parameterized template, a test a
+     * {@code @TestFactory} created, a test in a {@code @Nested} class. One test can be all three.
+     */
+    public void recordTestShape(boolean parameterized, boolean dynamic, boolean nested) {
+        if (parameterized) {
+            parameterizedTests.incrementAndGet();
+        }
+        if (dynamic) {
+            dynamicTests.incrementAndGet();
+        }
+        if (nested) {
+            nestedTests.incrementAndGet();
+        }
+    }
+
+    /** The tags of one finished test, its containers' included, each once. */
+    public void recordTestTags(Collection<String> tags) {
+        for (String tag : tags) {
+            testsByTag.computeIfAbsent(tag, key -> new AtomicInteger()).incrementAndGet();
+        }
     }
 
     public void recordSpringTestClass(boolean isJUnit4, boolean isBootTest, boolean isSliceTest, int mockBeanFieldCount,
@@ -484,6 +526,18 @@ public final class ProbeRecorder {
             writer.name("flakyTests").value(flakyTests.get());
             writer.name("retryingTestMethods").value(retryingTestMethods.get());
             writer.name("repeatedTestMethods").value(repeatedTestMethods.get());
+            writer.name("timeoutClasses").value(timeoutClasses.get());
+            writer.name("timeoutMethods").value(timeoutMethods.get());
+            writer.name("style").beginObject();
+            writer.name("parameterized").value(parameterizedTests.get());
+            writer.name("dynamic").value(dynamicTests.get());
+            writer.name("nested").value(nestedTests.get());
+            writer.endObject();
+            writer.name("byTag").beginObject();
+            for (Map.Entry<String, AtomicInteger> entry : new TreeMap<>(testsByTag).entrySet()) {
+                writer.name(entry.getKey()).value(entry.getValue().get());
+            }
+            writer.endObject();
             writer.name("byDuration").beginObject();
             for (int i = 0; i < DURATION_BUCKET_NAMES.length; i++) {
                 writer.name(DURATION_BUCKET_NAMES[i]).value(testsByDuration[i].get());

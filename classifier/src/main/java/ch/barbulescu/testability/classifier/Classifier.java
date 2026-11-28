@@ -2,6 +2,9 @@ package ch.barbulescu.testability.classifier;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.util.EnumSet;
+import java.util.Set;
+
 /**
  * A REFERENCE implementation only. The whole point of keeping level rules
  * out of the probe itself (see the probe's own package docs) is that an
@@ -60,5 +63,42 @@ public final class Classifier {
             return true;
         }
         return report.path("spring").path("bootTestClasses").asInt(0) > 0;
+    }
+
+    /**
+     * The test styles a report shows: an engine that ran at least one test, or a non-zero
+     * count in {@code tests.style}. They say how a module tests, not how well, so they don't
+     * change its level.
+     */
+    public static Set<TestStyle> styles(JsonNode report) {
+        Set<TestStyle> styles = EnumSet.noneOf(TestStyle.class);
+        JsonNode tests = report == null ? null : report.get("tests");
+        if (tests == null) {
+            return styles;
+        }
+        JsonNode byEngine = tests.path("byEngine");
+        if (byEngine.path("jqwik").asInt(0) > 0) {
+            styles.add(TestStyle.PROPERTY_BASED);
+        }
+        if (byEngine.path("archunit").asInt(0) > 0) {
+            styles.add(TestStyle.ARCHITECTURE_RULES);
+        }
+        if (byEngine.path("cucumber").asInt(0) > 0) {
+            styles.add(TestStyle.BDD);
+        }
+        if (byEngine.path("spock").asInt(0) > 0 || byEngine.path("kotest").asInt(0) > 0) {
+            styles.add(TestStyle.SPECIFICATION);
+        }
+        JsonNode style = tests.path("style");
+        if (style.path("parameterized").asInt(0) > 0) {
+            styles.add(TestStyle.PARAMETERIZED);
+        }
+        if (style.path("dynamic").asInt(0) > 0) {
+            styles.add(TestStyle.DYNAMIC);
+        }
+        if (style.path("nested").asInt(0) > 0) {
+            styles.add(TestStyle.NESTED);
+        }
+        return styles;
     }
 }
