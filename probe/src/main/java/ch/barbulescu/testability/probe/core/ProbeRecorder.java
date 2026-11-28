@@ -12,6 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * One instance per classloader (a plain lazy singleton already gives us
@@ -57,6 +58,10 @@ public final class ProbeRecorder {
     private static final String[] DURATION_BUCKET_NAMES = {"<100ms", "100ms-1s", "1s-10s", "10s+"};
     private final AtomicInteger[] testsByDuration = newCounters(DURATION_BUCKET_NAMES.length);
     private final AtomicLong maxTestDurationMs = new AtomicLong();
+    // Jupiter's parallel execution: as configured in any plan, and the most tests seen running at once.
+    private final AtomicBoolean parallelEnabled = new AtomicBoolean(false);
+    private final AtomicReference<String> parallelModeDefault = new AtomicReference<>();
+    private final AtomicInteger maxConcurrentTests = new AtomicInteger();
 
     // Spring test-class adapter
     private final AtomicBoolean springAdapterUsed = new AtomicBoolean(false);
@@ -261,6 +266,24 @@ public final class ProbeRecorder {
             }
         }
         return 0;
+    }
+
+    /**
+     * Once per test plan. {@code modeDefault} is null when unset. Enabled in any plan counts as
+     * enabled; the mode is the last one set.
+     */
+    public void recordParallelConfiguration(boolean enabled, String modeDefault) {
+        if (enabled) {
+            parallelEnabled.set(true);
+        }
+        if (modeDefault != null) {
+            parallelModeDefault.set(modeDefault);
+        }
+    }
+
+    /** How many tests were running when one started, that one included. */
+    public void recordConcurrentTests(int running) {
+        maxConcurrentTests.accumulateAndGet(running, Math::max);
     }
 
     /** A test class whose tests run in a fixed order, e.g. {@code @TestMethodOrder(OrderAnnotation.class)}. */
@@ -560,6 +583,11 @@ public final class ProbeRecorder {
             }
             writer.endObject();
             writer.name("maxTestDurationMs").value(maxTestDurationMs.get());
+            writer.name("parallel").beginObject();
+            writer.name("enabled").value(parallelEnabled.get());
+            writer.name("modeDefault").value(parallelModeDefault.get());
+            writer.name("maxConcurrentTests").value(maxConcurrentTests.get());
+            writer.endObject();
             writer.endObject();
 
             writer.name("mocking").beginObject();

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "buildTool": "GRADLE",
+  "tests": {
+    "succeeded": 3,
+    "failed": 0,
+    "parallel": {
+      "enabled": true,
+      "modeDefault": "concurrent",
+      "maxConcurrentTests": 3
+    }
+  },
+  "probeErrors": []
+}
