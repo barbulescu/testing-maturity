@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "buildTool": "GRADLE",
+  "tests": {
+    "byEngine": {
+      "junit-jupiter": 6,
+      "junit-vintage": 1
+    },
+    "succeeded": 1,
+    "failed": 5,
+    "aborted": 1,
+    "skipped": 0,
+    "failures": {
+      "assertion": 3,
+      "error": 2,
+      "byType": {
+        "java.lang.AssertionError": 1,
+        "java.lang.NullPointerException": 1,
+        "java.nio.file.NoSuchFileException": 1,
+        "org.junit.ComparisonFailure": 1,
+        "org.opentest4j.AssertionFailedError": 1
+      }
+    }
+  },
+  "probeErrors": []
+}

@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -31,6 +32,11 @@ public final class ProbeRecorder {
     private final AtomicInteger succeeded = new AtomicInteger();
     private final AtomicInteger failed = new AtomicInteger();
     private final AtomicInteger skipped = new AtomicInteger();
+    private final AtomicInteger aborted = new AtomicInteger();
+    // Failed tests by what they threw: the type only, never the message.
+    private final AtomicInteger assertionFailures = new AtomicInteger();
+    private final AtomicInteger errorFailures = new AtomicInteger();
+    private final Map<String, AtomicInteger> failuresByType = new ConcurrentHashMap<>();
     private final AtomicLong startNanos = new AtomicLong(-1);
     private final AtomicLong durationMs = new AtomicLong();
     private final AtomicInteger fixedOrderClasses = new AtomicInteger();
@@ -133,10 +139,33 @@ public final class ProbeRecorder {
         succeeded.incrementAndGet();
     }
 
-    /** Also used for JUnit Platform's ABORTED status - v1's schema has no separate bucket for it. */
-    public void recordTestFailed(String engineId) {
+    /**
+     * A test that threw: an {@link AssertionError} (also opentest4j's, AssertJ's, Mockito's
+     * verification errors and JUnit 4's {@code ComparisonFailure}) means it caught a real
+     * problem; anything else means the test itself or its environment broke. {@code thrown}
+     * may be null when the engine reports none.
+     */
+    public void recordTestFailed(String engineId, Throwable thrown) {
         countFor(engineId).incrementAndGet();
         failed.incrementAndGet();
+        if (thrown instanceof AssertionError) {
+            assertionFailures.incrementAndGet();
+        } else {
+            errorFailures.incrementAndGet();
+        }
+        if (thrown != null) {
+            failuresByType.computeIfAbsent(thrown.getClass().getName(), key -> new AtomicInteger()).incrementAndGet();
+        }
+    }
+
+    /**
+     * JUnit Platform's ABORTED status: a failing assumption ({@code TestAbortedException},
+     * JUnit 4's {@code AssumptionViolatedException}), or an attempt a retrying extension
+     * gave up on in favour of another.
+     */
+    public void recordTestAborted(String engineId) {
+        countFor(engineId).incrementAndGet();
+        aborted.incrementAndGet();
     }
 
     public void recordTestSkipped(String engineId) {
@@ -440,6 +469,16 @@ public final class ProbeRecorder {
             writer.name("succeeded").value(succeeded.get());
             writer.name("failed").value(failed.get());
             writer.name("skipped").value(skipped.get());
+            writer.name("aborted").value(aborted.get());
+            writer.name("failures").beginObject();
+            writer.name("assertion").value(assertionFailures.get());
+            writer.name("error").value(errorFailures.get());
+            writer.name("byType").beginObject();
+            for (Map.Entry<String, AtomicInteger> entry : new TreeMap<>(failuresByType).entrySet()) {
+                writer.name(entry.getKey()).value(entry.getValue().get());
+            }
+            writer.endObject();
+            writer.endObject();
             writer.name("durationMs").value(durationMs.get());
             writer.name("fixedOrderClasses").value(fixedOrderClasses.get());
             writer.name("flakyTests").value(flakyTests.get());

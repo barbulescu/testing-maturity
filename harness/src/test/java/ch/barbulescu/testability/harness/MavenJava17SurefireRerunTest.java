@@ -53,7 +53,7 @@ class MavenJava17SurefireRerunTest {
         JsonNode report = objectMapper.readTree(probeRun.reports.get(0));
         JsonSubset.assertSubset(expected, report, "$");
 
-        // The build passes, but the failed attempts are in the report: not a clean run.
+        // The build passes, but the report shows flaky tests: not a clean run.
         assertEquals(Level.TESTS_RUN, Classifier.classify(report),
                 "expected flaky tests to keep the run from counting as clean:\n" + report);
     }

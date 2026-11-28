@@ -180,8 +180,10 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
             ProbeRecorder recorder = ProbeRecorder.getInstance();
             if (result.getStatus() == TestExecutionResult.Status.SUCCESSFUL) {
                 recorder.recordTestSucceeded(engineId);
+            } else if (result.getStatus() == TestExecutionResult.Status.ABORTED) {
+                recorder.recordTestAborted(engineId);
             } else {
-                recorder.recordTestFailed(engineId);
+                recorder.recordTestFailed(engineId, result.getThrowable().orElse(null));
             }
             Long startNanos = testStartNanos.remove(testIdentifier.getUniqueId());
             if (startNanos != null) {

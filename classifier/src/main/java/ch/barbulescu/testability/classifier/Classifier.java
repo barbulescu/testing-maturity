@@ -29,14 +29,18 @@ public final class Classifier {
         int succeeded = tests.path("succeeded").asInt(0);
         int failed = tests.path("failed").asInt(0);
         int skipped = tests.path("skipped").asInt(0);
-        if (succeeded + failed + skipped == 0) {
+        int aborted = tests.path("aborted").asInt(0);
+        if (succeeded + failed + skipped + aborted == 0) {
             return Level.NO_VISIBILITY;
         }
 
         boolean probeHadErrors = report.path("probeErrors").size() > 0;
+        // A flaky test that passed in the end isn't a clean pass either. Retrying extensions
+        // report the attempts that failed as aborted, so "failed" alone may not show it.
+        boolean flaky = tests.path("flakyTests").asInt(0) > 0;
         // succeeded == 0 also lands here: if everything ran was skipped, that's not a
         // clean pass, it's a module that didn't really get exercised.
-        if (failed > 0 || probeHadErrors || succeeded == 0) {
+        if (failed > 0 || flaky || probeHadErrors || succeeded == 0) {
             return Level.TESTS_RUN;
         }
 
@@ -49,22 +53,12 @@ public final class Classifier {
 
     private static boolean isIntegrationAware(JsonNode report) {
         JsonNode onClasspath = report.path("onClasspath");
-        if (testcontainersUsed(report) || onClasspath.path("wiremock").asBoolean(false)) {
+        // Testcontainers on the classpath is often inherited from a parent POM and never used,
+        // so only a test that made it talk to Docker counts.
+        if (report.path("used").path("testcontainers").asBoolean(false)
+                || onClasspath.path("wiremock").asBoolean(false)) {
             return true;
         }
         return report.path("spring").path("bootTestClasses").asInt(0) > 0;
-    }
-
-    /**
-     * Testcontainers on the classpath is often inherited from a parent POM and never used,
-     * so only a test that made it talk to Docker counts. Reports from probes up to 0.2.0
-     * have no {@code used} section; for them, presence is all there is.
-     */
-    private static boolean testcontainersUsed(JsonNode report) {
-        JsonNode used = report.path("used").path("testcontainers");
-        if (used.isBoolean()) {
-            return used.asBoolean();
-        }
-        return report.path("onClasspath").path("testcontainers").asBoolean(false);
     }
 }

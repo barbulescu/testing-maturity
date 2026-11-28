@@ -6,8 +6,16 @@
       "junit-jupiter": 11
     },
     "succeeded": 6,
-    "failed": 3,
+    "failed": 1,
+    "aborted": 2,
     "skipped": 2,
+    "failures": {
+      "assertion": 1,
+      "error": 0,
+      "byType": {
+        "org.opentest4j.AssertionFailedError": 1
+      }
+    },
     "flakyTests": 3,
     "retryingTestMethods": 2,
     "repeatedTestMethods": 1
