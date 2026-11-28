@@ -44,12 +44,17 @@ final class ContextTracker {
     /**
      * Walks the parent chain too: a {@code @ContextHierarchy} loads every
      * level, and each level is a real context in its own right.
+     *
+     * @return whether any level was new
      */
-    synchronized void observe(ApplicationContext context, NewContextListener listener) {
+    synchronized boolean observe(ApplicationContext context, NewContextListener listener) {
+        boolean anyNew = false;
         for (ApplicationContext current = context; current != null; current = current.getParent()) {
             if (seen.put(current, Boolean.TRUE) == null) {
                 listener.newContext(!bootStarted.containsKey(current));
+                anyNew = true;
             }
         }
+        return anyNew;
     }
 }

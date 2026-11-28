@@ -15,7 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Spring without Boot: three {@code @SpringJUnitConfig} test classes over
  * two configurations. Proves the probe counts distinct contexts rather than
  * test classes (two of them share one cached context), and classifies them
- * as plain since no Boot lifecycle event ever fires.
+ * as plain since no Boot lifecycle event ever fires. Loading the German
+ * context takes at least 500 ms, so contextLoadMs can't be less.
  */
 class GradleJava17PlainSpringContextsTest {
 
@@ -48,6 +49,8 @@ class GradleJava17PlainSpringContextsTest {
         JsonNode expected = objectMapper.readTree(exampleDir.resolve("expected.json").toFile());
         JsonNode report = objectMapper.readTree(probeRun.reports.get(0));
         JsonSubset.assertSubset(expected, report, "$");
+        long contextLoadMs = report.path("spring").path("contextLoadMs").asLong(-1);
+        assertTrue(contextLoadMs >= 500, "contextLoadMs must include the slow German context: " + contextLoadMs);
     }
 
     private String gradleCommand(boolean withProbe) {
