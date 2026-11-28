@@ -183,6 +183,7 @@ MockK has no listener API like Mockito's, so the probe finds MockK mocks after t
 - `moduleDir` is taken from the `basedir` system property, which Surefire sets even with `forkCount=0`. If that isn't set, the probe uses `user.dir`. The path is made relative to `CI_PROJECT_DIR` when that variable is set.
 - `workerId` is the PID plus a random hex suffix. Parallel forks (Gradle `maxParallelForks`, Surefire `forkCount > 1`) each write their own report for the same module, so consumers must add them up by `moduleDir`.
 - `buildTool` is a best guess. The probe checks whether Surefire's `ForkedBooter` or Gradle's worker main class is on the classpath, and if neither is, it looks at `sun.java.command`.
+- `runner` is `"PITEST"` in one of [PIT](https://pitest.org)'s minion JVMs and `null` otherwise. PIT runs the tests again through `pitest-junit5-plugin`, in a JVM of its own for the coverage run and in more JVMs that run them against mutated code. The probe's listener fires there too, so one module gets a report from each minion next to the build's own, and in the mutation minions' reports a killed mutant counts as a failed test. The probe tells a minion by its main class (`org.pitest.…`) in `sun.java.command`, not by PIT's jars on the classpath. Consumers should leave these reports out when they add up a module's tests: a single one shows that the module runs mutation testing. In a minion, `buildTool` is `UNKNOWN`.
 
 ## Report schema
 
@@ -194,6 +195,7 @@ MockK has no listener API like Mockito's, so the probe finds MockK mocks after t
   "moduleDir": "services/payments",
   "workerId": "4211-a7f3c09e",
   "buildTool": "MAVEN",
+  "runner": null,
   "jvm": { "javaVersion": "1.8.0_402", "vendor": "Eclipse Adoptium" },
   "onClasspath": { "junit4": true, "vintage": false, "testcontainers": true,
                    "wiremock": false, "mockito": true, "mockk": false, "springBoot": true,
@@ -296,10 +298,17 @@ The classifier also prints the test styles a report shows, after the level. They
 | `architecture-rules` | Rules run by ArchUnit's engine (`tests.byEngine.archunit`) |
 | `bdd` | Scenarios run by Cucumber (`tests.byEngine.cucumber`) |
 | `specification` | Tests run by Spock or Kotest (`tests.byEngine.spock`, `tests.byEngine.kotest`) |
+| `mutation-testing` | A report from a PIT minion (`"runner": "PITEST"`) |
 | `parameterized`, `dynamic`, `nested` | A count above zero in `tests.style` |
 
 ```
 /path/to/testability-probe-4211-a7f3c09e.json: LEVEL_2 (tests ran, all passed, …) styles: property-based parameterized nested
+```
+
+A PIT minion's report gets no level, since its failed tests are killed mutants:
+
+```
+/path/to/testability-probe-4212-0b1d9e44.json: not classified (a PIT minion's report: its failed tests are killed mutants) styles: mutation-testing
 ```
 
 The classifier looks at one report at a time. To find modules that produced no report at all, compare against a list of all services (see below).
@@ -346,6 +355,7 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java17-custom-listeners` | `@TestExecutionListeners` replaces the defaults: `spring` section absent, `tests` section present |
 | `maven-java17-surefire-rerun` | Flaky tests: Surefire's `rerunFailingTestsCount` reruns a test that failed once in a second plan, and JUnit Pioneer's `@RetryingTest` and rerunner-jupiter's `@RepeatedIfExceptionsTest` retry an attempt that failed. All three count as flaky; a `@RepeatedTest` that always passes doesn't |
 | `gradle-java17-test-retry` | Blind spot: Gradle's test-retry plugin reruns the failed test in a new JVM. Two reports, one with the failure and one with the pass, and no flaky test in either |
+| `maven-java17-pitest`, `gradle-java17-pitest` | PIT after the tests, with `pitest-maven`'s `mutationCoverage` and with the `info.solidsoft.pitest` Gradle plugin: the test JVM's report is unmarked and classified as before, and the minions' reports, one of them with the killed mutants as failed tests, are marked `"runner": "PITEST"` |
 | `maven-java17-forkcount0-multimodule` | Tests run inside the Maven JVM: one report per module, each with the correct `moduleDir` |
 | `gradle-java17-parallel-execution` | Jupiter's parallel execution enabled in `junit-platform.properties`, methods concurrent: three tests that wait at a barrier for each other run at once |
 | `gradle-java17-parallel-forks` | `maxParallelForks = 2`: two reports for the same module with different `workerId`s |

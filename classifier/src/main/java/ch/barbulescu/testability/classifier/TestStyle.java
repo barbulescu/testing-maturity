@@ -2,7 +2,8 @@ package ch.barbulescu.testability.classifier;
 
 /**
  * A way of testing a report shows a module uses, next to its level. Engine-based styles come
- * from {@code tests.byEngine}, the others from {@code tests.style}. Like the levels, these are
+ * from {@code tests.byEngine}, mutation testing from {@code runner}, the others from
+ * {@code tests.style}. Like the levels, these are
  * only examples of what can be read from a report.
  */
 public enum TestStyle {
@@ -15,6 +16,8 @@ public enum TestStyle {
     BDD("bdd"),
     /** Spock or Kotest: tests written as specifications. */
     SPECIFICATION("specification"),
+    /** PIT: the tests ran against mutated code, in one of PIT's minion JVMs. */
+    MUTATION_TESTING("mutation-testing"),
     /** One test run over several inputs, e.g. {@code @ParameterizedTest}. */
     PARAMETERIZED("parameterized"),
     /** Tests created at run time by a {@code @TestFactory}. */

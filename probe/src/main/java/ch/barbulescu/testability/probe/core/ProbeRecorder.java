@@ -518,6 +518,7 @@ public final class ProbeRecorder {
         writer.name("moduleDir").value(this.<String>safely(ModuleIdentity::moduleDir, null));
         writer.name("workerId").value(workerId);
         writer.name("buildTool").value(safely(BuildTool::detect, "UNKNOWN"));
+        writer.name("runner").value(this.<String>safely(Runner::detect, null));
 
         writer.name("jvm").beginObject();
         writer.name("javaVersion").value(System.getProperty("java.version"));
