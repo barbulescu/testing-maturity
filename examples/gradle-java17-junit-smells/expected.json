@@ -1,6 +1,9 @@
 {
   "schemaVersion": 1,
   "buildTool": "GRADLE",
+  "coverage": {
+    "jacoco": false
+  },
   "tests": {
     "byEngine": {
       "junit-jupiter": 6,

@@ -1,6 +1,9 @@
 {
   "schemaVersion": 1,
   "buildTool": "MAVEN",
+  "coverage": {
+    "jacoco": false
+  },
   "onClasspath": {
     "junit4": true,
     "vintage": true,

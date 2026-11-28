@@ -59,6 +59,8 @@ tasks.processResources {
 
 tasks.test {
     useJUnitPlatform()
+    // CoverageToolTest checks for the JaCoCo agent the jacoco plugin attaches.
+    systemProperty("testability.probe.test.jacoco", "true")
     finalizedBy(tasks.jacocoTestReport)
 }
 
