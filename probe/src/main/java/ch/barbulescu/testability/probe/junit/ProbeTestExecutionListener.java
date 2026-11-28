@@ -28,8 +28,15 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class ProbeTestExecutionListener implements TestExecutionListener {
 
+    // One JVM can run several test plans, each with a new instance of this listener: Surefire
+    // reruns failed tests in a new plan. What has to be seen across plans is static, so per
+    // classloader like the recorder: a class or template is counted once, and a rerun that
+    // passes is matched with the run that failed.
+    private static final Set<String> INSPECTED_CLASSES = ConcurrentHashMap.newKeySet();
+    private static final Set<String> INSPECTED_TEMPLATES = ConcurrentHashMap.newKeySet();
+    private static final FlakyTestDetector FLAKY_TESTS = new FlakyTestDetector();
+
     private volatile TestPlan testPlan;
-    private final Set<String> inspectedClasses = ConcurrentHashMap.newKeySet();
     private final Map<String, Long> testStartNanos = new ConcurrentHashMap<>();
     private final Map<String, Boolean> perClassByClassName = new ConcurrentHashMap<>();
 
@@ -58,6 +65,7 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
             MockitoHook.ensureInstalledOnCurrentThread();
         });
         Safe.run(() -> inspectTestClass(testIdentifier));
+        Safe.run(() -> inspectTestTemplate(testIdentifier));
         Safe.run(() -> {
             MockKObserver.watchCurrentThread();
             // MockK mocks created since the last event on this thread were created while JUnit
@@ -99,12 +107,39 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
             return;
         }
         String className = ((ClassSource) source).getClassName();
-        if (!inspectedClasses.add(className)) {
+        if (!INSPECTED_CLASSES.add(className)) {
             return;
         }
         Class<?> testClass = loadClass(className);
         if (testClass != null && FixedOrderDetector.hasFixedOrder(testClass)) {
             ProbeRecorder.getInstance().recordFixedOrderClass();
+        }
+    }
+
+    /**
+     * A container with a method source is a test template or factory, such as a
+     * {@code @RepeatedTest}. Its method is counted once, also when Surefire reruns it.
+     */
+    private void inspectTestTemplate(TestIdentifier testIdentifier) {
+        TestSource source = testIdentifier.getSource().orElse(null);
+        if (!testIdentifier.isContainer() || !(source instanceof MethodSource)) {
+            return;
+        }
+        MethodSource method = (MethodSource) source;
+        Class<?> testClass = loadClass(method.getClassName());
+        RepetitionKind kind = testClass == null
+                ? RepetitionKind.NONE
+                : RepetitionKind.of(testClass, method.getMethodName(), method.getMethodParameterTypes());
+        if (kind == RepetitionKind.NONE) {
+            return;
+        }
+        FLAKY_TESTS.templateStarted(testIdentifier.getUniqueId());
+        if (INSPECTED_TEMPLATES.add(testIdentifier.getUniqueId())) {
+            if (kind == RepetitionKind.RETRYING) {
+                ProbeRecorder.getInstance().recordRetryingTestMethod();
+            } else {
+                ProbeRecorder.getInstance().recordRepeatedTestMethod();
+            }
         }
     }
 
@@ -127,6 +162,16 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
     public void executionFinished(TestIdentifier testIdentifier, TestExecutionResult result) {
         // Created while the node ran: the test method, @BeforeEach and @AfterEach, or @AfterAll.
         Safe.run(() -> creditNewMockKMocks(testIdentifier.getUniqueId()));
+        Safe.run(() -> {
+            String id = testIdentifier.getUniqueId();
+            boolean flaky = testIdentifier.isTest()
+                    ? FLAKY_TESTS.testFinished(id, testIdentifier.getParentId().orElse(null),
+                            result.getStatus() == TestExecutionResult.Status.SUCCESSFUL)
+                    : FLAKY_TESTS.containerFinished(id);
+            if (flaky) {
+                ProbeRecorder.getInstance().recordFlakyTest();
+            }
+        });
         Safe.run(() -> {
             if (!testIdentifier.isTest()) {
                 return;

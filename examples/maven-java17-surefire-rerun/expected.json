@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "buildTool": "MAVEN",
+  "tests": {
+    "byEngine": {
+      "junit-jupiter": 11
+    },
+    "succeeded": 6,
+    "failed": 3,
+    "skipped": 2,
+    "flakyTests": 3,
+    "retryingTestMethods": 2,
+    "repeatedTestMethods": 1
+  },
+  "probeErrors": []
+}

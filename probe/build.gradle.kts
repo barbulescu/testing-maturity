@@ -48,6 +48,9 @@ dependencies {
     // @AutoConfigureTestDatabase's attributes reference spring-jdbc types.
     testImplementation("org.springframework:spring-jdbc:6.2.19")
     testImplementation("junit:junit:4.13.2")
+    // Retrying-test annotations, read by name in RepetitionKindTest.
+    testImplementation("org.junit-pioneer:junit-pioneer:2.3.0")
+    testImplementation("io.github.artsok:rerunner-jupiter:2.1.6")
     // @MockBean's default attribute values reference org.mockito.Answers, so reading the
     // annotation via reflection needs this on the classpath even without creating a mock.
     testImplementation("org.mockito:mockito-core:5.14.2")
