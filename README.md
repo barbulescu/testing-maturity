@@ -105,7 +105,7 @@ In CI, the probe reads these GitLab variables and adds them to the report so it 
 
 | Hook | Registered via | Records |
 |---|---|---|
-| `junit.ProbeTestExecutionListener` | `META-INF/services/org.junit.platform.launcher.TestExecutionListener` | Test counts per engine (from the `[engine:…]` segment of the unique ID), pass/fail/abort/skip, wall time, the exception types failed tests threw, and flaky tests: see `tests.failures` and `tests.flakyTests` below |
+| `junit.ProbeTestExecutionListener` | `META-INF/services/org.junit.platform.launcher.TestExecutionListener` | Test counts per engine (from the `[engine:…]` segment of the unique ID), pass/fail/abort/skip, wall time, the exception types failed tests threw, flaky tests, parameterized, dynamic and nested tests (from the other segments of the unique ID), tags, and time limits: see `tests.failures`, `tests.flakyTests`, `tests.style`, `tests.byTag` and `tests.timeoutClasses` below |
 | `spring.ProbeSpringTestExecutionListener` | `META-INF/spring.factories` | For each Spring test class: JUnit 4 (`@RunWith`) or 5, `@SpringBootTest` (and its `webEnvironment`) or a slice annotation (`org.springframework.boot.test.autoconfigure.*`), how many fields are annotated `@MockBean`/`@MockitoBean`, and how it wires in infrastructure: `@AutoConfigureTestDatabase`, `@ServiceConnection`, `@DynamicPropertySource`, `@EmbeddedKafka`. Also counts each distinct application context the tests ran against, with or without Spring Boot |
 | `mockito.ProbeMockCreationListener` | Mockito's `MockitoFramework.addListener`, installed by the JUnit listener on each thread that runs tests | Every mock or spy Mockito creates (and `mockStatic` on Mockito 3.5+), attributed to the test that is running on that thread |
 | `core.MockKObserver` | Called by the JUnit listener at every test and container start and finish | MockK mocks (MockK has no listener API): see [MockK](#mockk) |
@@ -193,6 +193,9 @@ MockK has no listener API like Mockito's, so the probe finds MockK mocks after t
                            "byType": { "org.opentest4j.AssertionFailedError": 1 } },
              "fixedOrderClasses": 1,
              "flakyTests": 1, "retryingTestMethods": 2, "repeatedTestMethods": 1,
+             "timeoutClasses": 1, "timeoutMethods": 3,
+             "style": { "parameterized": 12, "dynamic": 3, "nested": 6 },
+             "byTag": { "integration": 4, "slow": 2 },
              "byDuration": { "<100ms": 35, "100ms-1s": 5, "1s-10s": 1, "10s+": 0 },
              "maxTestDurationMs": 4210 },
   "spring": { "testClasses": 12, "junit4Classes": 3, "bootTestClasses": 4,
@@ -241,6 +244,10 @@ How to read it:
 
   Failed attempts stay in the counts: a rerun's in `tests.failed`, and the attempts that Pioneer and rerunner retry in `tests.aborted`. rerunner-jupiter reports the repetitions it doesn't need after a pass as skipped. Gradle's test-retry plugin reruns in a new JVM, so it isn't seen: see [Blind spots](#blind-spots).
 - `tests.retryingTestMethods` counts test methods annotated `@RetryingTest` or `@RepeatedIfExceptionsTest`, and `tests.repeatedTestMethods` those annotated `@RepeatedTest`. Both are matched by annotation name when the method's template starts, once per method. A retrying test hides flakiness rather than fixing it. A repeated test is often there to catch it.
+- `tests.byEngine` counts tests by the engine that ran them, from the `[engine:…]` segment of their unique IDs. Besides `junit-jupiter` and `junit-vintage`, an engine shows a way of testing: `jqwik` (property-based tests), `archunit` (architecture rules, one test per rule), `cucumber` (Gherkin scenarios), `spock` and `kotest` (specifications). The reference classifier reads these, see [Classifier](#classifier-reference).
+- `tests.style` counts finished tests by the segments of their unique IDs. `parameterized` counts the invocations of a test template (`[test-template:…]`), such as a `@ParameterizedTest` with three inputs as three tests, except those of `@RepeatedTest`, `@RetryingTest` and `@RepeatedIfExceptionsTest`, which run one test several times. `dynamic` counts tests a `@TestFactory` created (`[dynamic-test:…]`), also inside a dynamic container. `nested` counts tests in a `@Nested` class (`[nested-class:…]`), at any depth. One test can count in all three. These segment types are Jupiter's, so tests of other engines count in none.
+- `tests.byTag` counts finished tests by tag: Jupiter's `@Tag`, JUnit 4's `@Category` (which Vintage reports as a tag named after the category class), or whatever another engine reports. A test counts once for each tag it carries itself or through one of its containers, such as its class or a `@Nested` class. Tags are names from the test code, such as `integration` or `slow`. The probe writes them as they are.
+- `tests.timeoutClasses` counts test classes that limit how long their tests may run: Jupiter's `@Timeout` on the class or a base class, or a JUnit 4 `Timeout` rule in a `@Rule` or `@ClassRule` field. `tests.timeoutMethods` counts test methods with Jupiter's `@Timeout` or JUnit 4's `@Test(timeout = …)`, each once, also when it's a template that runs several times. Both are matched by name when the class or method starts. A default timeout set through `junit.jupiter.execution.timeout.default` isn't seen, nor is `@Timeout` on a lifecycle method such as `@BeforeEach`.
 - `tests.byDuration` sorts finished tests by how long each took, from its start event to its finish event. That includes `@BeforeEach` and `@AfterEach`, but not class-level setup such as `@BeforeAll` or loading a Spring context. `tests.maxTestDurationMs` is the slowest test. Slow unit tests often wait with `Thread.sleep` instead of for a condition, or do real I/O.
 - `tests.skipped` counts disabled tests the way Gradle and Surefire do. JUnit reports a skipped container, such as a `@Disabled` or `@Ignore` class, without any events for its children, so the probe counts the tests below it from the test plan. A skipped `@ParameterizedTest`, `@RepeatedTest` or `@TestFactory` counts as one test, because its invocations only exist at run time. Tests disabled by commenting out the code or the annotation are invisible to the probe.
 - `ci.*` fields are `null` outside CI.
@@ -261,6 +268,20 @@ How to read it:
 ./gradlew :classifier:installDist
 classifier/build/install/classifier/bin/classifier /path/to/testability-probe-*.json
 # /path/to/testability-probe-4211-a7f3c09e.json: LEVEL_3 (level 2, plus evidence of real integration testing …)
+```
+
+The classifier also prints the test styles a report shows, after the level. They say how a module tests, not how well, so they don't change its level:
+
+| Style | Shown by |
+|---|---|
+| `property-based` | Tests run by jqwik (`tests.byEngine.jqwik`) |
+| `architecture-rules` | Rules run by ArchUnit's engine (`tests.byEngine.archunit`) |
+| `bdd` | Scenarios run by Cucumber (`tests.byEngine.cucumber`) |
+| `specification` | Tests run by Spock or Kotest (`tests.byEngine.spock`, `tests.byEngine.kotest`) |
+| `parameterized`, `dynamic`, `nested` | A count above zero in `tests.style` |
+
+```
+/path/to/testability-probe-4211-a7f3c09e.json: LEVEL_2 (tests ran, all passed, …) styles: property-based parameterized nested
 ```
 
 The classifier looks at one report at a time. To find modules that produced no report at all, compare against a list of all services (see below).
@@ -301,6 +322,7 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java17-mock-everything` | `@MockBean` fields counted on a `@SpringBootTest` that doesn't test any real code |
 | `gradle-java17-disabled-tests` | `@Disabled` on a method, a class and a nested class, disabled parameterized and repeated tests, Vintage `@Ignore` on a method and a class, and a failing assumption: all disabled tests counted as skipped |
 | `gradle-java17-junit-smells` | JUnit-level smells for Jupiter and Vintage: a fixed test order (`@TestMethodOrder`, `@FixMethodOrder`) next to random order and an independent test, and a test that sleeps for over a second |
+| `gradle-java17-test-styles` | Test styles: three `@ParameterizedTest` invocations next to a `@RepeatedTest` that doesn't count as parameterized, three `@TestFactory` tests (one in a dynamic container), a `@Nested` class, jqwik and ArchUnit as their own engines, tags from `@Tag` on a class, a nested class and a method and from a JUnit 4 `@Category`, and time limits from `@Timeout`, a JUnit 4 timeout rule and `@Test(timeout)`. The classifier shows the styles and keeps level 2 |
 | `gradle-java17-jacoco` | The Gradle `jacoco` plugin attaches JaCoCo's agent: `coverage.jacoco` is `true`. `gradle-java17-junit-smells` and `maven-java11-boot27-vintage` expect `false` |
 | `gradle-java17-custom-listeners` | `@TestExecutionListeners` replaces the defaults: `spring` section absent, `tests` section present |
 | `maven-java17-surefire-rerun` | Flaky tests: Surefire's `rerunFailingTestsCount` reruns a test that failed once in a second plan, and JUnit Pioneer's `@RetryingTest` and rerunner-jupiter's `@RepeatedIfExceptionsTest` retry an attempt that failed. All three count as flaky; a `@RepeatedTest` that always passes doesn't |

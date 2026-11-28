@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.EnumSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -97,6 +98,43 @@ class ClassifierTest {
         assertEquals(Level.TESTS_RUN, Classifier.classify(json(
                 "{\"tests\":{\"succeeded\":0,\"failed\":0,\"skipped\":3},"
                         + "\"onClasspath\":{\"testcontainers\":false,\"wiremock\":false},\"probeErrors\":[]}")));
+    }
+
+    @Test
+    void enginesShowTheirStyles() throws IOException {
+        assertEquals(EnumSet.of(TestStyle.PROPERTY_BASED, TestStyle.ARCHITECTURE_RULES, TestStyle.BDD, TestStyle.SPECIFICATION),
+                Classifier.styles(json("{\"tests\":{\"byEngine\":{\"junit-jupiter\":4,\"jqwik\":2,"
+                        + "\"archunit\":3,\"cucumber\":5,\"spock\":1}}}")));
+        assertEquals(EnumSet.of(TestStyle.SPECIFICATION),
+                Classifier.styles(json("{\"tests\":{\"byEngine\":{\"kotest\":7}}}")));
+    }
+
+    @Test
+    void engineWithoutTestsShowsNoStyle() throws IOException {
+        assertEquals(EnumSet.noneOf(TestStyle.class),
+                Classifier.styles(json("{\"tests\":{\"byEngine\":{\"junit-jupiter\":4,\"jqwik\":0}}}")));
+    }
+
+    @Test
+    void testShapesShowTheirStyles() throws IOException {
+        assertEquals(EnumSet.of(TestStyle.PARAMETERIZED, TestStyle.NESTED),
+                Classifier.styles(json("{\"tests\":{\"byEngine\":{\"junit-jupiter\":9},"
+                        + "\"style\":{\"parameterized\":6,\"dynamic\":0,\"nested\":2}}}")));
+        assertEquals(EnumSet.of(TestStyle.DYNAMIC),
+                Classifier.styles(json("{\"tests\":{\"style\":{\"parameterized\":0,\"dynamic\":3,\"nested\":0}}}")));
+    }
+
+    @Test
+    void noTestsSectionShowsNoStyle() throws IOException {
+        assertEquals(EnumSet.noneOf(TestStyle.class), Classifier.styles(null));
+        assertEquals(EnumSet.noneOf(TestStyle.class), Classifier.styles(json("{\"probeErrors\":[]}")));
+    }
+
+    @Test
+    void stylesDoNotChangeTheLevel() throws IOException {
+        assertEquals(Level.TESTS_PASS_CLEANLY, Classifier.classify(json(
+                "{\"tests\":{\"byEngine\":{\"jqwik\":2},\"succeeded\":2,\"failed\":0,\"skipped\":0,"
+                        + "\"style\":{\"parameterized\":2}},\"probeErrors\":[]}")));
     }
 
     private JsonNode json(String content) throws IOException {

@@ -7,6 +7,7 @@ import ch.barbulescu.testability.probe.core.Safe;
 import ch.barbulescu.testability.probe.core.TestNodeTracker;
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.TestSource;
+import org.junit.platform.engine.TestTag;
 import org.junit.platform.engine.UniqueId;
 import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.engine.support.descriptor.MethodSource;
@@ -14,9 +15,11 @@ import org.junit.platform.launcher.TestExecutionListener;
 import org.junit.platform.launcher.TestIdentifier;
 import org.junit.platform.launcher.TestPlan;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,9 +33,11 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
 
     // One JVM can run several test plans, each with a new instance of this listener: Surefire
     // reruns failed tests in a new plan. What has to be seen across plans is static, so per
-    // classloader like the recorder: a class or template is counted once, and a rerun that
+    // classloader like the recorder: a class, method or template is counted once, and a rerun that
     // passes is matched with the run that failed.
     private static final Set<String> INSPECTED_CLASSES = ConcurrentHashMap.newKeySet();
+    private static final Set<String> INSPECTED_METHODS = ConcurrentHashMap.newKeySet();
+    // The unique IDs of templates that repeat or retry one test rather than parameterize it.
     private static final Set<String> INSPECTED_TEMPLATES = ConcurrentHashMap.newKeySet();
     private static final FlakyTestDetector FLAKY_TESTS = new FlakyTestDetector();
 
@@ -65,6 +70,7 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
             MockitoHook.ensureInstalledOnCurrentThread();
         });
         Safe.run(() -> inspectTestClass(testIdentifier));
+        Safe.run(() -> inspectTestMethod(testIdentifier));
         Safe.run(() -> inspectTestTemplate(testIdentifier));
         Safe.run(() -> {
             MockKObserver.watchCurrentThread();
@@ -111,8 +117,38 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
             return;
         }
         Class<?> testClass = loadClass(className);
-        if (testClass != null && FixedOrderDetector.hasFixedOrder(testClass)) {
+        if (testClass == null) {
+            return;
+        }
+        if (FixedOrderDetector.hasFixedOrder(testClass)) {
             ProbeRecorder.getInstance().recordFixedOrderClass();
+        }
+        if (TimeoutDetector.hasTimeout(testClass)) {
+            ProbeRecorder.getInstance().recordTimeoutClass();
+        }
+    }
+
+    /**
+     * Once per test method, whether it's a test or the template or factory that makes its
+     * tests: every invocation of a {@code @ParameterizedTest} has the same method source.
+     */
+    private void inspectTestMethod(TestIdentifier testIdentifier) {
+        TestSource source = testIdentifier.getSource().orElse(null);
+        if (!(source instanceof MethodSource)) {
+            return;
+        }
+        MethodSource methodSource = (MethodSource) source;
+        String key = methodSource.getClassName() + "#" + methodSource.getMethodName()
+                + "(" + methodSource.getMethodParameterTypes() + ")";
+        if (!INSPECTED_METHODS.add(key)) {
+            return;
+        }
+        Class<?> testClass = loadClass(methodSource.getClassName());
+        Method method = testClass == null
+                ? null
+                : TestMethods.find(testClass, methodSource.getMethodName(), methodSource.getMethodParameterTypes());
+        if (method != null && TimeoutDetector.hasTimeout(method)) {
+            ProbeRecorder.getInstance().recordTimeoutMethod();
         }
     }
 
@@ -194,6 +230,18 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
             recorder.recordTestMockUsage(tracker.isSpringTest(id), tracker.usesMocks(id), tracker.mockKinds(id),
                     tracker.ownMockCount(id), tracker.classLevelMockCount(id), tracker.className(id));
         });
+        Safe.run(() -> {
+            if (!testIdentifier.isTest()) {
+                return;
+            }
+            TestShape shape = TestShape.of(testIdentifier.getUniqueId());
+            // A @RepeatedTest or @RetryingTest runs one test several times; it isn't parameterized.
+            boolean parameterized = shape.templateInvocation
+                    && !INSPECTED_TEMPLATES.contains(testIdentifier.getParentId().orElse(""));
+            ProbeRecorder recorder = ProbeRecorder.getInstance();
+            recorder.recordTestShape(parameterized, shape.dynamic, shape.nested);
+            recorder.recordTestTags(tagsOf(testIdentifier));
+        });
         Safe.run(() -> TestNodeTracker.getInstance().nodeFinished(testIdentifier.getUniqueId()));
     }
 
@@ -236,6 +284,21 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
             tests.add(skipped);
         }
         return tests;
+    }
+
+    /**
+     * The test's tags and those of its containers. Jupiter already gives a test its class's
+     * tags, but not every engine does.
+     */
+    private Set<String> tagsOf(TestIdentifier test) {
+        Set<String> tags = new HashSet<>();
+        TestPlan plan = testPlan;
+        for (TestIdentifier node = test; node != null; node = plan == null ? null : plan.getParent(node).orElse(null)) {
+            for (TestTag tag : node.getTags()) {
+                tags.add(tag.getName());
+            }
+        }
+        return tags;
     }
 
     @Override
