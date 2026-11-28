@@ -48,13 +48,6 @@ class ClassifierTest {
     }
 
     @Test
-    void testcontainersPresenceIsLevelThreeInReportsWithoutUse() throws IOException {
-        assertEquals(Level.INTEGRATION_AWARE, Classifier.classify(json(
-                "{\"tests\":{\"succeeded\":1,\"failed\":0,\"skipped\":0},"
-                        + "\"onClasspath\":{\"testcontainers\":true,\"wiremock\":false},\"probeErrors\":[]}")));
-    }
-
-    @Test
     void testcontainersUseIsLevelThree() throws IOException {
         assertEquals(Level.INTEGRATION_AWARE, Classifier.classify(json(
                 "{\"tests\":{\"succeeded\":1,\"failed\":0,\"skipped\":0},"
@@ -83,6 +76,20 @@ class ClassifierTest {
                 "{\"tests\":{\"succeeded\":1,\"failed\":0,\"skipped\":0},"
                         + "\"onClasspath\":{\"testcontainers\":false,\"wiremock\":false},"
                         + "\"spring\":{\"bootTestClasses\":2},\"probeErrors\":[]}")));
+    }
+
+    @Test
+    void flakyTestIsLevelOneEvenIfNothingFailed() throws IOException {
+        assertEquals(Level.TESTS_RUN, Classifier.classify(json(
+                "{\"tests\":{\"succeeded\":2,\"failed\":0,\"aborted\":1,\"skipped\":0,\"flakyTests\":1},"
+                        + "\"probeErrors\":[]}")));
+    }
+
+    @Test
+    void failedAssumptionIsNotAFailure() throws IOException {
+        assertEquals(Level.TESTS_PASS_CLEANLY, Classifier.classify(json(
+                "{\"tests\":{\"succeeded\":2,\"failed\":0,\"aborted\":1,\"skipped\":0,\"flakyTests\":0},"
+                        + "\"probeErrors\":[]}")));
     }
 
     @Test

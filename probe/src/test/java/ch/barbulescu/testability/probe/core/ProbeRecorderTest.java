@@ -3,9 +3,12 @@ package ch.barbulescu.testability.probe.core;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Fault injection: nothing the sink does - throwing, or a real unwritable
@@ -63,5 +66,36 @@ class ProbeRecorderTest {
         String result = recorder.safely(() -> "real value", "fallback");
 
         assertEquals("real value", result);
+    }
+
+    /** Thrown only by this test, so the shared recorder's counts for it are this test's alone. */
+    static final class RecorderTestBreakage extends RuntimeException {
+        RecorderTestBreakage(String message) {
+            super(message);
+        }
+    }
+
+    static final class RecorderTestAssertion extends AssertionError {
+        RecorderTestAssertion(String message) {
+            super(message);
+        }
+    }
+
+    @Test
+    void failuresAreCountedByThrownTypeWithoutTheirMessages() {
+        ProbeRecorder recorder = ProbeRecorder.getInstance();
+        recorder.recordTestPlanStarted();
+        recorder.recordTestFailed("junit-jupiter", new RecorderTestBreakage("secret-breakage-message"));
+        recorder.recordTestFailed("junit-jupiter", new RecorderTestBreakage("secret-breakage-message"));
+        recorder.recordTestFailed("junit-jupiter", new RecorderTestAssertion("secret-assertion-message"));
+        recorder.recordTestFailed("junit-jupiter", null);
+
+        AtomicReference<String> report = new AtomicReference<>();
+        recorder.writeReport((fileName, json) -> report.set(json));
+
+        String json = report.get();
+        assertTrue(json.contains("\"" + RecorderTestBreakage.class.getName() + "\":2"), json);
+        assertTrue(json.contains("\"" + RecorderTestAssertion.class.getName() + "\":1"), json);
+        assertFalse(json.contains("secret-"), "messages must never reach the report:\n" + json);
     }
 }

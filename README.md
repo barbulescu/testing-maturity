@@ -105,7 +105,7 @@ In CI, the probe reads these GitLab variables and adds them to the report so it 
 
 | Hook | Registered via | Records |
 |---|---|---|
-| `junit.ProbeTestExecutionListener` | `META-INF/services/org.junit.platform.launcher.TestExecutionListener` | Test counts per engine (from the `[engine:…]` segment of the unique ID), pass/fail/skip, wall time, and flaky tests: see `tests.flakyTests` below |
+| `junit.ProbeTestExecutionListener` | `META-INF/services/org.junit.platform.launcher.TestExecutionListener` | Test counts per engine (from the `[engine:…]` segment of the unique ID), pass/fail/abort/skip, wall time, the exception types failed tests threw, and flaky tests: see `tests.failures` and `tests.flakyTests` below |
 | `spring.ProbeSpringTestExecutionListener` | `META-INF/spring.factories` | For each Spring test class: JUnit 4 (`@RunWith`) or 5, `@SpringBootTest` (and its `webEnvironment`) or a slice annotation (`org.springframework.boot.test.autoconfigure.*`), how many fields are annotated `@MockBean`/`@MockitoBean`, and how it wires in infrastructure: `@AutoConfigureTestDatabase`, `@ServiceConnection`, `@DynamicPropertySource`, `@EmbeddedKafka`. Also counts each distinct application context the tests ran against, with or without Spring Boot |
 | `mockito.ProbeMockCreationListener` | Mockito's `MockitoFramework.addListener`, installed by the JUnit listener on each thread that runs tests | Every mock or spy Mockito creates (and `mockStatic` on Mockito 3.5+), attributed to the test that is running on that thread |
 | `core.MockKObserver` | Called by the JUnit listener at every test and container start and finish | MockK mocks (MockK has no listener API): see [MockK](#mockk) |
@@ -188,7 +188,9 @@ MockK has no listener API like Mockito's, so the probe finds MockK mocks after t
   "versions": { "springBoot": "2.7.18", "junitPlatform": "1.8.2" },
   "coverage": { "jacoco": true },
   "tests": { "byEngine": { "junit-jupiter": 41 }, "succeeded": 40,
-             "failed": 1, "skipped": 0, "durationMs": 18230,
+             "failed": 1, "aborted": 1, "skipped": 0, "durationMs": 18230,
+             "failures": { "assertion": 1, "error": 0,
+                           "byType": { "org.opentest4j.AssertionFailedError": 1 } },
              "fixedOrderClasses": 1,
              "flakyTests": 1, "retryingTestMethods": 2, "repeatedTestMethods": 1,
              "byDuration": { "<100ms": 35, "100ms-1s": 5, "1s-10s": 1, "10s+": 0 },
@@ -230,13 +232,14 @@ How to read it:
   - Under parallel execution, work stealing can attribute a class-level mock to the wrong class.
   - A mock defined in a `@TestConfiguration`, rather than as a field, counts only for the first test class that loads that context.
   - Mock beans created while Spring loads a context stay with the class, even when the context is loaded to create a test's instance (constructor injection). This holds for JUnit 4's `SpringRunner` too.
-- JUnit Platform's `ABORTED` status (for example a failing assumption) is counted under `failed`.
+- `tests.failed` counts tests that failed, and `tests.aborted` those JUnit Platform reports as `ABORTED`: a failing assumption (`assumeTrue`, JUnit 4's `AssumptionViolatedException`), or an attempt that a retrying extension gave up in favour of another. An aborted test neither failed nor passed.
+- `tests.failures` splits failed tests by the type of what they threw. The probe records the type and never the message. `assertion` counts `AssertionError` and its subclasses, such as opentest4j's `AssertionFailedError`, AssertJ's and Hamcrest's errors, Mockito's verification errors and JUnit 4's `ComparisonFailure`: the test caught a real problem. `error` counts everything else, such as `NullPointerException`, `IllegalStateException` or an `IOException`: the test itself or its environment broke before it could check anything. A Spring context that fails to load shows up here as `IllegalStateException`, for every test that needed it. With Spring Boot, its root cause is in `bootStarts.failureRootCauses`. `byType` counts each exact class, so a missing file shows up as `java.nio.file.NoSuchFileException`, not `IOException`.
 - `tests.fixedOrderClasses` counts test classes that pin the order their tests run in, which usually means the tests depend on each other: `@TestMethodOrder` with any orderer except `MethodOrderer.Random`, or JUnit 4's `@FixMethodOrder(MethodSorters.NAME_ASCENDING)`. Each class is checked once, by annotation name, when its container starts.
 - `tests.flakyTests` counts tests that failed and then passed in this JVM. A test is counted when it passes after a failure, so a test that never passes isn't flaky. The probe sees this in two ways:
   - The same unique ID finishes as failed and later as passed. That's a rerun, as Surefire's `rerunFailingTestsCount` does: it reruns failed tests in a second test plan in the same JVM, and the build passes.
   - A `@RetryingTest` (JUnit Pioneer), `@RepeatedIfExceptionsTest` (rerunner-jupiter) or `@RepeatedTest` has invocations that passed and invocations that didn't. Pioneer and rerunner report a failed attempt as aborted, not failed, so any result other than success counts as a failure here. A `@ParameterizedTest` with mixed results isn't flaky, since its invocations run different inputs.
 
-  The failed attempts stay in `tests.failed` (aborted ones as well, see above), so a run with a flaky test isn't a clean pass. rerunner-jupiter reports the repetitions it doesn't need after a pass as skipped. Gradle's test-retry plugin reruns in a new JVM, so it isn't seen: see [Blind spots](#blind-spots).
+  Failed attempts stay in the counts: a rerun's in `tests.failed`, and the attempts that Pioneer and rerunner retry in `tests.aborted`. rerunner-jupiter reports the repetitions it doesn't need after a pass as skipped. Gradle's test-retry plugin reruns in a new JVM, so it isn't seen: see [Blind spots](#blind-spots).
 - `tests.retryingTestMethods` counts test methods annotated `@RetryingTest` or `@RepeatedIfExceptionsTest`, and `tests.repeatedTestMethods` those annotated `@RepeatedTest`. Both are matched by annotation name when the method's template starts, once per method. A retrying test hides flakiness rather than fixing it. A repeated test is often there to catch it.
 - `tests.byDuration` sorts finished tests by how long each took, from its start event to its finish event. That includes `@BeforeEach` and `@AfterEach`, but not class-level setup such as `@BeforeAll` or loading a Spring context. `tests.maxTestDurationMs` is the slowest test. Slow unit tests often wait with `Thread.sleep` instead of for a condition, or do real I/O.
 - `tests.skipped` counts disabled tests the way Gradle and Surefire do. JUnit reports a skipped container, such as a `@Disabled` or `@Ignore` class, without any events for its children, so the probe counts the tests below it from the test plan. A skipped `@ParameterizedTest`, `@RepeatedTest` or `@TestFactory` counts as one test, because its invocations only exist at run time. Tests disabled by commenting out the code or the annotation are invisible to the probe.
@@ -250,9 +253,9 @@ How to read it:
 | Level | Meaning |
 |---|---|
 | `LEVEL_0` NO_VISIBILITY | No report, or no tests recorded |
-| `LEVEL_1` TESTS_RUN | Tests ran, but at least one failed, the probe recorded errors, or nothing passed |
+| `LEVEL_1` TESTS_RUN | Tests ran, but at least one failed, one was flaky, the probe recorded errors, or nothing passed. A failing assumption (`aborted`) isn't a failure |
 | `LEVEL_2` TESTS_PASS_CLEANLY | Tests ran, all passed, and the probe recorded no errors |
-| `LEVEL_3` INTEGRATION_AWARE | Level 2, plus Testcontainers in use (`used.testcontainers`; in reports without that field, on the classpath), WireMock on the classpath, or at least one `@SpringBootTest` class |
+| `LEVEL_3` INTEGRATION_AWARE | Level 2, plus Testcontainers in use (`used.testcontainers`), WireMock on the classpath, or at least one `@SpringBootTest` class |
 
 ```bash
 ./gradlew :classifier:installDist
@@ -289,6 +292,7 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java17-integration-wiring` | How Spring tests reach the app and its database: `RANDOM_PORT` next to the default `MOCK`, a `@JdbcTest` that swaps in embedded H2, and one that keeps the configured database (`replace = NONE`) and sets its URL with `@DynamicPropertySource` |
 | `gradle-java21-boot4-junit6` | Binary compatibility with the newest stack |
 | `gradle-java17-context-fails` | Spring context fails to load; root-cause type captured, no message leaked |
+| `gradle-java17-failure-types` | Failed tests split by what they threw: Jupiter's assertion, a plain `assert` and JUnit 4's `ComparisonFailure` count as assertions, a `NullPointerException` and a missing file as errors, and a failing assumption as aborted |
 | `gradle-java17-plain-spring-contexts` | Spring without Boot: three test classes over two configurations give two plain contexts |
 | `gradle-java17-mocking` | Mock usage counted per test and split between plain and Spring tests: `@Mock` via `MockitoExtension`, an inline mock in one of two methods, a field initializer in a class of three tests (one mock each), a `@BeforeAll` mock shared by two tests, `@MockitoBean` |
 | `gradle-java17-mockk` | Kotlin tests with MockK, counted like Mockito's: an inline mock, a field initializer, `@MockK` fields, `mockkObject` undone in `@AfterEach`, `spyk`, a chain stubbed in one go, and a `PER_CLASS` instance whose mock both tests share. `-PmockkVersion=...` runs it on another MockK version |
