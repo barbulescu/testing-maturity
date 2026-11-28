@@ -28,6 +28,20 @@ public final class ClasspathPresence {
         presence.put("mockito", isPresent(loader, "org.mockito.Mockito"));
         presence.put("mockk", isPresent(loader, "io.mockk.MockKGateway"));
         presence.put("springBoot", isPresent(loader, "org.springframework.boot.SpringApplication"));
+        // In-process stand-ins for real infrastructure. Present only says a test COULD run
+        // against them instead of the database or broker production uses.
+        presence.put("h2", isPresent(loader, "org.h2.Driver"));
+        presence.put("hsqldb", isPresent(loader, "org.hsqldb.jdbc.JDBCDriver"));
+        // derbytools has the embedded driver since 10.15; before, the engine jar did. The
+        // engine's own autoloaded driver covers projects that only depend on the engine.
+        presence.put("derby",
+                isPresent(loader, "org.apache.derby.jdbc.EmbeddedDriver")
+                        || isPresent(loader, "org.apache.derby.iapi.jdbc.AutoloadedDriver"));
+        // Flapdoodle's embedded MongoDB: MongodStarter up to 3.x, the transitions API since 4.x.
+        presence.put("embeddedMongo",
+                isPresent(loader, "de.flapdoodle.embed.mongo.MongodStarter")
+                        || isPresent(loader, "de.flapdoodle.embed.mongo.transitions.Mongod"));
+        presence.put("embeddedKafka", isPresent(loader, "org.springframework.kafka.test.EmbeddedKafkaBroker"));
         return presence;
     }
 

@@ -51,6 +51,13 @@ public final class ProbeRecorder {
     private final AtomicInteger plainContextsLoaded = new AtomicInteger();
     private final AtomicInteger dirtiesContextClasses = new AtomicInteger();
     private final AtomicInteger dirtiesContextMethods = new AtomicInteger();
+    // How Spring tests reach the application and its infrastructure
+    private static final String[] WEB_ENVIRONMENTS = {"MOCK", "RANDOM_PORT", "DEFINED_PORT", "NONE"};
+    private final AtomicInteger[] bootTestsByWebEnvironment = newCounters(WEB_ENVIRONMENTS.length);
+    private final AtomicInteger testDatabaseReplacedClasses = new AtomicInteger();
+    private final AtomicInteger serviceConnectionClasses = new AtomicInteger();
+    private final AtomicInteger dynamicPropertySourceClasses = new AtomicInteger();
+    private final AtomicInteger embeddedKafkaClasses = new AtomicInteger();
 
     // Mock usage per finished test, split by whether its class is a Spring test class
     private final AtomicInteger plainTests = new AtomicInteger();
@@ -224,6 +231,34 @@ public final class ProbeRecorder {
         dirtiesContextMethods.addAndGet(dirtiesContextMethodCount);
     }
 
+    /**
+     * How one Spring test class wires the application to the outside: {@code webEnvironment}
+     * is {@code @SpringBootTest}'s (null without one, or an unknown value), and the flags
+     * say whether the class swaps its database for an embedded one, connects to containers
+     * through {@code @ServiceConnection} or {@code @DynamicPropertySource}, and starts an
+     * embedded Kafka broker.
+     */
+    public void recordSpringTestClassWiring(String webEnvironment, boolean testDatabaseReplaced,
+            boolean serviceConnection, boolean dynamicPropertySource, boolean embeddedKafka) {
+        for (int i = 0; i < WEB_ENVIRONMENTS.length; i++) {
+            if (WEB_ENVIRONMENTS[i].equals(webEnvironment)) {
+                bootTestsByWebEnvironment[i].incrementAndGet();
+            }
+        }
+        if (testDatabaseReplaced) {
+            testDatabaseReplacedClasses.incrementAndGet();
+        }
+        if (serviceConnection) {
+            serviceConnectionClasses.incrementAndGet();
+        }
+        if (dynamicPropertySource) {
+            dynamicPropertySourceClasses.incrementAndGet();
+        }
+        if (embeddedKafka) {
+            embeddedKafkaClasses.incrementAndGet();
+        }
+    }
+
     /** Called once per distinct application context; plain means not started by Spring Boot. */
     public void recordSpringContextLoaded(boolean plain) {
         springAdapterUsed.set(true);
@@ -354,6 +389,10 @@ public final class ProbeRecorder {
         }
         writer.endObject();
 
+        writer.name("used").beginObject();
+        writer.name("testcontainers").value(safely(TestcontainersUsage::dockerClientCreated, false));
+        writer.endObject();
+
         Map<String, Boolean> coverage = safely(CoverageTool::detect, Collections.emptyMap());
         writer.name("coverage").beginObject();
         for (Map.Entry<String, Boolean> entry : coverage.entrySet()) {
@@ -419,6 +458,15 @@ public final class ProbeRecorder {
             writer.name("plainContextsLoaded").value(plainContextsLoaded.get());
             writer.name("dirtiesContextClasses").value(dirtiesContextClasses.get());
             writer.name("dirtiesContextMethods").value(dirtiesContextMethods.get());
+            writer.name("bootTestsByWebEnvironment").beginObject();
+            for (int i = 0; i < WEB_ENVIRONMENTS.length; i++) {
+                writer.name(WEB_ENVIRONMENTS[i]).value(bootTestsByWebEnvironment[i].get());
+            }
+            writer.endObject();
+            writer.name("testDatabaseReplacedClasses").value(testDatabaseReplacedClasses.get());
+            writer.name("serviceConnectionClasses").value(serviceConnectionClasses.get());
+            writer.name("dynamicPropertySourceClasses").value(dynamicPropertySourceClasses.get());
+            writer.name("embeddedKafkaClasses").value(embeddedKafkaClasses.get());
             writer.endObject();
         }
 

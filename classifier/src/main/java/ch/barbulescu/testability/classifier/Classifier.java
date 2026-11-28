@@ -49,9 +49,22 @@ public final class Classifier {
 
     private static boolean isIntegrationAware(JsonNode report) {
         JsonNode onClasspath = report.path("onClasspath");
-        if (onClasspath.path("testcontainers").asBoolean(false) || onClasspath.path("wiremock").asBoolean(false)) {
+        if (testcontainersUsed(report) || onClasspath.path("wiremock").asBoolean(false)) {
             return true;
         }
         return report.path("spring").path("bootTestClasses").asInt(0) > 0;
+    }
+
+    /**
+     * Testcontainers on the classpath is often inherited from a parent POM and never used,
+     * so only a test that made it talk to Docker counts. Reports from probes up to 0.2.0
+     * have no {@code used} section; for them, presence is all there is.
+     */
+    private static boolean testcontainersUsed(JsonNode report) {
+        JsonNode used = report.path("used").path("testcontainers");
+        if (used.isBoolean()) {
+            return used.asBoolean();
+        }
+        return report.path("onClasspath").path("testcontainers").asBoolean(false);
     }
 }

@@ -24,7 +24,7 @@ testing-maturity/
 │   ├── tests/pom.xml   # Maven only: runs the probe's tests (see "Building with Maven")
 │   └── src/main/java/ch/barbulescu/testability/probe/
 │       ├── core/    # recorder, Safe, JSON writer, file sink, CI context, module identity, build tool,
-│       │            # classpath and coverage-tool detection, test-node tracking, the Mockito bridge and the MockK observer
+│       │            # classpath, coverage-tool and Testcontainers-use detection, test-node tracking, the Mockito bridge and the MockK observer
 │       ├── junit/   # JUnit Platform TestExecutionListener
 │       ├── mockito/ # Mockito MockCreationListener (loaded only when Mockito is present)
 │       └── spring/  # Spring TestExecutionListener + Boot ApplicationListener
@@ -106,7 +106,7 @@ In CI, the probe reads these GitLab variables and adds them to the report so it 
 | Hook | Registered via | Records |
 |---|---|---|
 | `junit.ProbeTestExecutionListener` | `META-INF/services/org.junit.platform.launcher.TestExecutionListener` | Test counts per engine (from the `[engine:…]` segment of the unique ID), pass/fail/skip, wall time |
-| `spring.ProbeSpringTestExecutionListener` | `META-INF/spring.factories` | For each Spring test class: JUnit 4 (`@RunWith`) or 5, `@SpringBootTest` or a slice annotation (`org.springframework.boot.test.autoconfigure.*`), and how many fields are annotated `@MockBean`/`@MockitoBean`. Also counts each distinct application context the tests ran against, with or without Spring Boot |
+| `spring.ProbeSpringTestExecutionListener` | `META-INF/spring.factories` | For each Spring test class: JUnit 4 (`@RunWith`) or 5, `@SpringBootTest` (and its `webEnvironment`) or a slice annotation (`org.springframework.boot.test.autoconfigure.*`), how many fields are annotated `@MockBean`/`@MockitoBean`, and how it wires in infrastructure: `@AutoConfigureTestDatabase`, `@ServiceConnection`, `@DynamicPropertySource`, `@EmbeddedKafka`. Also counts each distinct application context the tests ran against, with or without Spring Boot |
 | `mockito.ProbeMockCreationListener` | Mockito's `MockitoFramework.addListener`, installed by the JUnit listener on each thread that runs tests | Every mock or spy Mockito creates (and `mockStatic` on Mockito 3.5+), attributed to the test that is running on that thread |
 | `core.MockKObserver` | Called by the JUnit listener at every test and container start and finish | MockK mocks (MockK has no listener API): see [MockK](#mockk) |
 | `spring.ProbeSpringApplicationListener` | `META-INF/spring.factories` | Spring Boot startup time, from `ApplicationStartingEvent` to `ApplicationReadyEvent` or `ApplicationFailedEvent`. On failure it records the root-cause exception **type**, never the message |
@@ -182,7 +182,9 @@ MockK has no listener API like Mockito's, so the probe finds MockK mocks after t
   "buildTool": "MAVEN",
   "jvm": { "javaVersion": "1.8.0_402", "vendor": "Eclipse Adoptium" },
   "onClasspath": { "junit4": true, "vintage": false, "testcontainers": true,
-                   "wiremock": false, "mockito": true, "mockk": false, "springBoot": true },
+                   "wiremock": false, "mockito": true, "mockk": false, "springBoot": true,
+                   "h2": true, "hsqldb": false, "derby": false, "embeddedMongo": false, "embeddedKafka": false },
+  "used": { "testcontainers": true },
   "versions": { "springBoot": "2.7.18", "junitPlatform": "1.8.2" },
   "coverage": { "jacoco": true },
   "tests": { "byEngine": { "junit-jupiter": 41 }, "succeeded": 40,
@@ -193,7 +195,10 @@ MockK has no listener API like Mockito's, so the probe finds MockK mocks after t
   "spring": { "testClasses": 12, "junit4Classes": 3, "bootTestClasses": 4,
               "sliceTestClasses": 5, "mockBeanFields": 17,
               "contextsLoaded": 3, "plainContextsLoaded": 1,
-              "dirtiesContextClasses": 1, "dirtiesContextMethods": 2 },
+              "dirtiesContextClasses": 1, "dirtiesContextMethods": 2,
+              "bootTestsByWebEnvironment": { "MOCK": 3, "RANDOM_PORT": 1, "DEFINED_PORT": 0, "NONE": 0 },
+              "testDatabaseReplacedClasses": 2, "serviceConnectionClasses": 1,
+              "dynamicPropertySourceClasses": 1, "embeddedKafkaClasses": 0 },
   "mocking": { "mockitoObserved": true, "mockkObserved": false, "plainTests": 25, "plainTestsUsingMocks": 9,
                "springTests": 16, "springTestsUsingMocks": 11,
                "testsUsingStaticMocks": 2, "testsUsingDeepStubs": 1,
@@ -210,10 +215,14 @@ MockK has no listener API like Mockito's, so the probe finds MockK mocks after t
 
 How to read it:
 
-- `onClasspath` shows which libraries are **present** on the classpath, not whether any test used them. The probe checks with `Class.forName(name, false, loader)`, so no class is initialized.
+- `onClasspath` shows which libraries are **present** on the classpath, not whether any test used them. The probe checks with `Class.forName(name, false, loader)`, so no class is initialized. Testcontainers and WireMock are often inherited from a parent POM and never used. `h2`, `hsqldb`, `derby`, `embeddedMongo` (Flapdoodle) and `embeddedKafka` (`spring-kafka-test`) are in-process stand-ins for real infrastructure. Present means some test could run against them instead of the database or broker production uses.
+- `used.testcontainers` says whether Testcontainers talked to Docker in this JVM: `DockerClientFactory` created a Docker client, which every container start and Ryuk go through. It stays `false` when Testcontainers only looked for Docker and found none, as `@Testcontainers(disabledWithoutDocker = true)` does without a daemon. The probe reads the factory's `instance` and `client` fields by name (the same in 1.19 through 2.0; a different layout reads as `false`). It reads them only if Testcontainers already initialized that class, which the `testcontainers` thread group it creates shows, so looking never initializes Testcontainers.
 - `coverage.jacoco` says whether JaCoCo measured coverage in this test JVM, not how much code the tests cover. It's `true` when JaCoCo's runtime (`org.jacoco.agent.rt.RT`) can be loaded. That's the case when its agent is attached (the Gradle `jacoco` plugin, `jacoco-maven-plugin`'s `prepare-agent`, or a `-javaagent` in `JAVA_TOOL_OPTIONS`) and with offline instrumentation. It's `false` when the build configures JaCoCo but the agent never reaches the test JVM, for example when Surefire's `argLine` doesn't include `@{argLine}`, or with `forkCount=0`. The coverage numbers themselves are in the build's own JaCoCo report. Other coverage tools aren't detected.
 - `tests`, `spring` and `bootStarts` are left out when their adapter never ran. A missing `spring` section means no Spring test listener fired. It does not mean there were zero Spring tests. For example, a custom `@TestExecutionListeners` can replace the default listeners, and then the probe's listener never runs.
 - `spring.contextsLoaded` counts distinct application contexts, not test classes. Test classes that share a context through Spring's context cache count it once. A context recreated after `@DirtiesContext` counts again, and every level of a `@ContextHierarchy` counts. `spring.plainContextsLoaded` is the subset that Spring Boot did not start, for example contexts from `@ContextConfiguration` or `@SpringJUnitConfig`. A context that fails to load is not counted here. With Boot, a failed load shows up in `bootStarts.failed`. Without Boot, it shows up only as failed tests.
+- `spring.bootTestsByWebEnvironment` sorts `@SpringBootTest` classes by `webEnvironment`. `RANDOM_PORT` and `DEFINED_PORT` start a real server that tests reach over HTTP. `MOCK`, the default, starts none, so requests go through `MockMvc` or `WebTestClient`'s mock, or the tests call beans directly.
+- `spring.testDatabaseReplacedClasses` counts Spring test classes where Boot replaces the configured `DataSource` with an embedded database: an `@AutoConfigureTestDatabase` whose `replace` isn't `NONE`, either on the class or carried by a slice such as `@DataJpaTest` or `@JdbcTest`. Together with `onClasspath.h2` it shows tests that run against H2 while production runs another database. The `spring.test.database.replace` property isn't read.
+- `spring.serviceConnectionClasses` counts Spring test classes with a `@ServiceConnection` field, including in a base class, and `spring.dynamicPropertySourceClasses` those with a `@DynamicPropertySource` method. Both are the usual ways to point the context at a container. A `@ServiceConnection` on a `@Bean` method in a configuration class isn't seen. `spring.embeddedKafkaClasses` counts classes annotated `@EmbeddedKafka`, directly or through another annotation.
 - `spring.dirtiesContextClasses` counts Spring test classes annotated `@DirtiesContext`, including through a base class, and `spring.dirtiesContextMethods` counts test methods annotated with it. Each one throws away a context that the following tests then have to rebuild, which is a common reason for a high `contextsLoaded`.
 - `mocking` appears whenever `tests` does. `mockitoObserved` and `mockkObserved` say whether the probe could watch each library. If both are `false`, a zero count tells you nothing: Mockito was absent or older than 2.1, and MockK was absent or couldn't be read. Mockito and MockK are detected; EasyMock and JMockit are not. Attribution is best effort:
   - A mock created on a thread other than the test's isn't counted.
@@ -236,7 +245,7 @@ How to read it:
 | `LEVEL_0` NO_VISIBILITY | No report, or no tests recorded |
 | `LEVEL_1` TESTS_RUN | Tests ran, but at least one failed, the probe recorded errors, or nothing passed |
 | `LEVEL_2` TESTS_PASS_CLEANLY | Tests ran, all passed, and the probe recorded no errors |
-| `LEVEL_3` INTEGRATION_AWARE | Level 2, plus Testcontainers or WireMock on the classpath, or at least one `@SpringBootTest` class |
+| `LEVEL_3` INTEGRATION_AWARE | Level 2, plus Testcontainers in use (`used.testcontainers`; in reports without that field, on the classpath), WireMock on the classpath, or at least one `@SpringBootTest` class |
 
 ```bash
 ./gradlew :classifier:installDist
@@ -267,7 +276,8 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 |---|---|
 | `maven-java8-boot21-springrunner` | Spring listener under `SpringRunner` with Surefire's JUnit 4 provider; Boot startup recorded |
 | `maven-java11-boot27-vintage` | Vintage and Jupiter tests mixed; counts split correctly by engine |
-| `gradle-java17-boot3-tc-wiremock` | Testcontainers and WireMock detected; `@Testcontainers(disabledWithoutDocker = true)` avoids needing Docker-in-Docker, so that class is skipped and its test counted as skipped |
+| `gradle-java17-boot3-tc-wiremock` | Testcontainers and WireMock detected; `@Testcontainers(disabledWithoutDocker = true)` avoids needing Docker-in-Docker, so that class is skipped and its test counted as skipped, and `used.testcontainers` is `false` |
+| `gradle-java17-integration-wiring` | How Spring tests reach the app and its database: `RANDOM_PORT` next to the default `MOCK`, a `@JdbcTest` that swaps in embedded H2, and one that keeps the configured database (`replace = NONE`) and sets its URL with `@DynamicPropertySource` |
 | `gradle-java21-boot4-junit6` | Binary compatibility with the newest stack |
 | `gradle-java17-context-fails` | Spring context fails to load; root-cause type captured, no message leaked |
 | `gradle-java17-plain-spring-contexts` | Spring without Boot: three test classes over two configurations give two plain contexts |

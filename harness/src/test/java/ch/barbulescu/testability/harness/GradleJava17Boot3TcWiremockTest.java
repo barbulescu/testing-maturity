@@ -17,7 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * library's test actually exercises a real container - the harness
  * container itself has no Docker socket, so
  * {@code @Testcontainers(disabledWithoutDocker = true)} skips that test
- * class rather than needing Docker-in-Docker.
+ * class rather than needing Docker-in-Docker. That same skip is why
+ * {@code used.testcontainers} is false: Testcontainers looked for Docker,
+ * found none, and never created a client.
  */
 class GradleJava17Boot3TcWiremockTest {
 

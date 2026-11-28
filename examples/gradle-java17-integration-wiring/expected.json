@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "buildTool": "GRADLE",
+  "onClasspath": {
+    "testcontainers": false,
+    "springBoot": true,
+    "h2": true,
+    "hsqldb": false,
+    "derby": false,
+    "embeddedMongo": false,
+    "embeddedKafka": false
+  },
+  "used": {
+    "testcontainers": false
+  },
+  "tests": {
+    "byEngine": {
+      "junit-jupiter": 4
+    },
+    "succeeded": 4,
+    "failed": 0,
+    "skipped": 0
+  },
+  "spring": {
+    "testClasses": 4,
+    "bootTestClasses": 2,
+    "sliceTestClasses": 2,
+    "bootTestsByWebEnvironment": {
+      "MOCK": 1,
+      "RANDOM_PORT": 1,
+      "DEFINED_PORT": 0,
+      "NONE": 0
+    },
+    "testDatabaseReplacedClasses": 1,
+    "serviceConnectionClasses": 0,
+    "dynamicPropertySourceClasses": 1,
+    "embeddedKafkaClasses": 0
+  },
+  "probeErrors": []
+}
