@@ -355,7 +355,7 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java17-custom-listeners` | `@TestExecutionListeners` replaces the defaults: `spring` section absent, `tests` section present |
 | `maven-java17-surefire-rerun` | Flaky tests: Surefire's `rerunFailingTestsCount` reruns a test that failed once in a second plan, and JUnit Pioneer's `@RetryingTest` and rerunner-jupiter's `@RepeatedIfExceptionsTest` retry an attempt that failed. All three count as flaky; a `@RepeatedTest` that always passes doesn't |
 | `gradle-java17-test-retry` | Blind spot: Gradle's test-retry plugin reruns the failed test in a new JVM. Two reports, one with the failure and one with the pass, and no flaky test in either |
-| `maven-java17-pitest` | PIT's `mutationCoverage` after `test`: Surefire's report is unmarked and classified as before, and the minions' reports, one of them with the killed mutants as failed tests, are marked `"runner": "PITEST"` |
+| `maven-java17-pitest`, `gradle-java17-pitest` | PIT after the tests, with `pitest-maven`'s `mutationCoverage` and with the `info.solidsoft.pitest` Gradle plugin: the test JVM's report is unmarked and classified as before, and the minions' reports, one of them with the killed mutants as failed tests, are marked `"runner": "PITEST"` |
 | `maven-java17-forkcount0-multimodule` | Tests run inside the Maven JVM: one report per module, each with the correct `moduleDir` |
 | `gradle-java17-parallel-execution` | Jupiter's parallel execution enabled in `junit-platform.properties`, methods concurrent: three tests that wait at a barrier for each other run at once |
 | `gradle-java17-parallel-forks` | `maxParallelForks = 2`: two reports for the same module with different `workerId`s |
