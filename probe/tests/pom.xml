@@ -81,6 +81,19 @@
             <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
+        <!-- Retrying-test annotations, read by name in RepetitionKindTest. -->
+        <dependency>
+            <groupId>org.junit-pioneer</groupId>
+            <artifactId>junit-pioneer</artifactId>
+            <version>2.3.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.github.artsok</groupId>
+            <artifactId>rerunner-jupiter</artifactId>
+            <version>2.1.6</version>
+            <scope>test</scope>
+        </dependency>
         <!-- @MockBean's default attribute values reference org.mockito.Answers. -->
         <dependency>
             <groupId>org.mockito</groupId>

@@ -34,6 +34,9 @@ public final class ProbeRecorder {
     private final AtomicLong startNanos = new AtomicLong(-1);
     private final AtomicLong durationMs = new AtomicLong();
     private final AtomicInteger fixedOrderClasses = new AtomicInteger();
+    private final AtomicInteger flakyTests = new AtomicInteger();
+    private final AtomicInteger retryingTestMethods = new AtomicInteger();
+    private final AtomicInteger repeatedTestMethods = new AtomicInteger();
     // Finished tests by how long they took, from start to finish event.
     private static final long[] DURATION_BUCKET_MINIMUMS_MS = {0, 100, 1_000, 10_000};
     private static final String[] DURATION_BUCKET_NAMES = {"<100ms", "100ms-1s", "1s-10s", "10s+"};
@@ -87,7 +90,7 @@ public final class ProbeRecorder {
 
     private final List<String> probeErrors = Collections.synchronizedList(new ArrayList<String>());
     private final AtomicBoolean shutdownHookRegistered = new AtomicBoolean(false);
-    private final AtomicBoolean flushed = new AtomicBoolean(false);
+    private final AtomicBoolean written = new AtomicBoolean(false);
 
     private ProbeRecorder() {
     }
@@ -116,7 +119,7 @@ public final class ProbeRecorder {
      */
     public void ensureShutdownHookRegistered() {
         if (shutdownHookRegistered.compareAndSet(false, true)) {
-            Runtime.getRuntime().addShutdownHook(new Thread(this::flush, "testability-probe-flush"));
+            Runtime.getRuntime().addShutdownHook(new Thread(this::flushIfNeverWritten, "testability-probe-flush"));
         }
     }
 
@@ -211,6 +214,21 @@ public final class ProbeRecorder {
         fixedOrderClasses.incrementAndGet();
     }
 
+    /** A test that both failed and passed in this JVM: rerun, retried, or repeated with mixed results. */
+    public void recordFlakyTest() {
+        flakyTests.incrementAndGet();
+    }
+
+    /** A test method that retries itself on failure, e.g. JUnit Pioneer's {@code @RetryingTest}. */
+    public void recordRetryingTestMethod() {
+        retryingTestMethods.incrementAndGet();
+    }
+
+    /** A {@code @RepeatedTest} method. */
+    public void recordRepeatedTestMethod() {
+        repeatedTestMethods.incrementAndGet();
+    }
+
     public void recordSpringTestClass(boolean isJUnit4, boolean isBootTest, boolean isSliceTest, int mockBeanFieldCount,
             boolean dirtiesContextClass, int dirtiesContextMethodCount) {
         springAdapterUsed.set(true);
@@ -287,13 +305,25 @@ public final class ProbeRecorder {
         probeErrors.add(t.getClass().getName());
     }
 
-    public void flush() {
-        if (!flushed.compareAndSet(false, true)) {
-            return;
-        }
+    /**
+     * Writes the report with everything recorded so far, replacing the previous one. Called
+     * whenever a test plan finishes, because one JVM can run several: Surefire reruns failed
+     * tests in a new plan ({@code rerunFailingTestsCount}), and runs one plan per test class
+     * when it hands classes to forks one at a time. {@code durationMs} runs from the first
+     * plan's start to the last plan's end.
+     */
+    public synchronized void flush() {
         long start = startNanos.get();
         durationMs.set(start >= 0 ? (System.nanoTime() - start) / 1_000_000 : 0);
         writeReport(new FileSink());
+        written.set(true);
+    }
+
+    /** At shutdown; leaves a report written at a plan's end, and its duration, as it is. */
+    private void flushIfNeverWritten() {
+        if (!written.get()) {
+            flush();
+        }
     }
 
     /**
@@ -412,6 +442,9 @@ public final class ProbeRecorder {
             writer.name("skipped").value(skipped.get());
             writer.name("durationMs").value(durationMs.get());
             writer.name("fixedOrderClasses").value(fixedOrderClasses.get());
+            writer.name("flakyTests").value(flakyTests.get());
+            writer.name("retryingTestMethods").value(retryingTestMethods.get());
+            writer.name("repeatedTestMethods").value(repeatedTestMethods.get());
             writer.name("byDuration").beginObject();
             for (int i = 0; i < DURATION_BUCKET_NAMES.length; i++) {
                 writer.name(DURATION_BUCKET_NAMES[i]).value(testsByDuration[i].get());

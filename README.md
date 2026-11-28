@@ -105,7 +105,7 @@ In CI, the probe reads these GitLab variables and adds them to the report so it 
 
 | Hook | Registered via | Records |
 |---|---|---|
-| `junit.ProbeTestExecutionListener` | `META-INF/services/org.junit.platform.launcher.TestExecutionListener` | Test counts per engine (from the `[engine:…]` segment of the unique ID), pass/fail/skip, wall time |
+| `junit.ProbeTestExecutionListener` | `META-INF/services/org.junit.platform.launcher.TestExecutionListener` | Test counts per engine (from the `[engine:…]` segment of the unique ID), pass/fail/skip, wall time, and flaky tests: see `tests.flakyTests` below |
 | `spring.ProbeSpringTestExecutionListener` | `META-INF/spring.factories` | For each Spring test class: JUnit 4 (`@RunWith`) or 5, `@SpringBootTest` (and its `webEnvironment`) or a slice annotation (`org.springframework.boot.test.autoconfigure.*`), how many fields are annotated `@MockBean`/`@MockitoBean`, and how it wires in infrastructure: `@AutoConfigureTestDatabase`, `@ServiceConnection`, `@DynamicPropertySource`, `@EmbeddedKafka`. Also counts each distinct application context the tests ran against, with or without Spring Boot |
 | `mockito.ProbeMockCreationListener` | Mockito's `MockitoFramework.addListener`, installed by the JUnit listener on each thread that runs tests | Every mock or spy Mockito creates (and `mockStatic` on Mockito 3.5+), attributed to the test that is running on that thread |
 | `core.MockKObserver` | Called by the JUnit listener at every test and container start and finish | MockK mocks (MockK has no listener API): see [MockK](#mockk) |
@@ -161,7 +161,7 @@ MockK has no listener API like Mockito's, so the probe finds MockK mocks after t
 
 - **The probe never breaks the build.** Every entry point runs through `Safe.run`, which catches any `Throwable` and records its type in `probeErrors`. Each report field is computed on its own, so one bad value (for example a malformed environment variable) leaves that field empty and the rest of the report is still written. If writing the report fails, the build still succeeds.
 - **Production guard.** `ProbeSpringApplicationListener` does nothing unless `org.springframework.test.context.TestContext` is on the classpath. If the jar ever ends up on a runtime classpath, it has no effect.
-- **One report per classloader, written once.** `ProbeRecorder` is a singleton per classloader and registers a shutdown hook the first time either adapter uses it. The hook writes the report. This matters for plain `SpringRunner` tests under Surefire's JUnit 4 provider: the JUnit Platform launcher never runs there, so the Spring adapter is the only one that fires.
+- **One report per classloader, rewritten at the end of every test plan.** `ProbeRecorder` is a singleton per classloader. The JUnit listener writes the report each time a test plan finishes, replacing the previous one, because one JVM can run several plans: Surefire reruns failed tests in a new plan (`rerunFailingTestsCount`), and with `forkCount` above 1 it hands test classes to the forks one at a time and runs a plan for each. The report is written to a temporary file and then moved over the old one, so a JVM killed while writing leaves the previous report intact. The recorder also registers a shutdown hook the first time either adapter uses it. The hook writes the report only if no plan has finished. This matters for plain `SpringRunner` tests under Surefire's JUnit 4 provider: the JUnit Platform launcher never runs there, so the Spring adapter is the only one that fires.
 - **Java 8 bytecode, JDK-only core.** Enforced by `options.release = 8`, by ArchUnit rules (`core` may only import the JDK, `junit` only JUnit Platform, `mockito` only Mockito, `spring` only Spring) and by `ClassFileVersionTest`.
 
 ### Module identity
@@ -190,6 +190,7 @@ MockK has no listener API like Mockito's, so the probe finds MockK mocks after t
   "tests": { "byEngine": { "junit-jupiter": 41 }, "succeeded": 40,
              "failed": 1, "skipped": 0, "durationMs": 18230,
              "fixedOrderClasses": 1,
+             "flakyTests": 1, "retryingTestMethods": 2, "repeatedTestMethods": 1,
              "byDuration": { "<100ms": 35, "100ms-1s": 5, "1s-10s": 1, "10s+": 0 },
              "maxTestDurationMs": 4210 },
   "spring": { "testClasses": 12, "junit4Classes": 3, "bootTestClasses": 4,
@@ -231,6 +232,12 @@ How to read it:
   - Mock beans created while Spring loads a context stay with the class, even when the context is loaded to create a test's instance (constructor injection). This holds for JUnit 4's `SpringRunner` too.
 - JUnit Platform's `ABORTED` status (for example a failing assumption) is counted under `failed`.
 - `tests.fixedOrderClasses` counts test classes that pin the order their tests run in, which usually means the tests depend on each other: `@TestMethodOrder` with any orderer except `MethodOrderer.Random`, or JUnit 4's `@FixMethodOrder(MethodSorters.NAME_ASCENDING)`. Each class is checked once, by annotation name, when its container starts.
+- `tests.flakyTests` counts tests that failed and then passed in this JVM. A test is counted when it passes after a failure, so a test that never passes isn't flaky. The probe sees this in two ways:
+  - The same unique ID finishes as failed and later as passed. That's a rerun, as Surefire's `rerunFailingTestsCount` does: it reruns failed tests in a second test plan in the same JVM, and the build passes.
+  - A `@RetryingTest` (JUnit Pioneer), `@RepeatedIfExceptionsTest` (rerunner-jupiter) or `@RepeatedTest` has invocations that passed and invocations that didn't. Pioneer and rerunner report a failed attempt as aborted, not failed, so any result other than success counts as a failure here. A `@ParameterizedTest` with mixed results isn't flaky, since its invocations run different inputs.
+
+  The failed attempts stay in `tests.failed` (aborted ones as well, see above), so a run with a flaky test isn't a clean pass. rerunner-jupiter reports the repetitions it doesn't need after a pass as skipped. Gradle's test-retry plugin reruns in a new JVM, so it isn't seen: see [Blind spots](#blind-spots).
+- `tests.retryingTestMethods` counts test methods annotated `@RetryingTest` or `@RepeatedIfExceptionsTest`, and `tests.repeatedTestMethods` those annotated `@RepeatedTest`. Both are matched by annotation name when the method's template starts, once per method. A retrying test hides flakiness rather than fixing it. A repeated test is often there to catch it.
 - `tests.byDuration` sorts finished tests by how long each took, from its start event to its finish event. That includes `@BeforeEach` and `@AfterEach`, but not class-level setup such as `@BeforeAll` or loading a Spring context. `tests.maxTestDurationMs` is the slowest test. Slow unit tests often wait with `Thread.sleep` instead of for a condition, or do real I/O.
 - `tests.skipped` counts disabled tests the way Gradle and Surefire do. JUnit reports a skipped container, such as a `@Disabled` or `@Ignore` class, without any events for its children, so the probe counts the tests below it from the test plan. A skipped `@ParameterizedTest`, `@RepeatedTest` or `@TestFactory` counts as one test, because its invocations only exist at run time. Tests disabled by commenting out the code or the annotation are invisible to the probe.
 - `ci.*` fields are `null` outside CI.
@@ -265,6 +272,8 @@ Some situations can't be seen from inside the test JVM. The probe doesn't try to
 | No test sources (`gradle-java17-no-tests`) | The Gradle test task is `NO-SOURCE`, so no test JVM starts | Service list as the denominator |
 | Surefire ≤ 2.21 with Jupiter (`maven-java8-surefire-2.12-jupiter`) | Surefire doesn't detect the Jupiter tests, so they silently never run | Static check of the Surefire version |
 
+One situation produces reports but hides what matters in them. Gradle's [test-retry plugin](https://github.com/gradle/test-retry-gradle-plugin) reruns failed tests in a **new test JVM** (`gradle-java17-test-retry`). The first JVM's report has the failure, and the retry's report has the pass. Neither counts a flaky test, and the build passes. Only joining the reports of one build (same `ci.jobId` and `moduleDir`) shows that a retry happened, and the reports don't name tests, so they can't show which test it was.
+
 ## Examples and harness
 
 Each directory under `examples/` is a standalone project that uses the tooling of its era. Where it applies, an `expected.json` file lists fields the report must contain (a subset match). Without the probe, the examples are ordinary projects. The probe is added only when the harness passes a property:
@@ -290,6 +299,8 @@ Each directory under `examples/` is a standalone project that uses the tooling o
 | `gradle-java17-junit-smells` | JUnit-level smells for Jupiter and Vintage: a fixed test order (`@TestMethodOrder`, `@FixMethodOrder`) next to random order and an independent test, and a test that sleeps for over a second |
 | `gradle-java17-jacoco` | The Gradle `jacoco` plugin attaches JaCoCo's agent: `coverage.jacoco` is `true`. `gradle-java17-junit-smells` and `maven-java11-boot27-vintage` expect `false` |
 | `gradle-java17-custom-listeners` | `@TestExecutionListeners` replaces the defaults: `spring` section absent, `tests` section present |
+| `maven-java17-surefire-rerun` | Flaky tests: Surefire's `rerunFailingTestsCount` reruns a test that failed once in a second plan, and JUnit Pioneer's `@RetryingTest` and rerunner-jupiter's `@RepeatedIfExceptionsTest` retry an attempt that failed. All three count as flaky; a `@RepeatedTest` that always passes doesn't |
+| `gradle-java17-test-retry` | Blind spot: Gradle's test-retry plugin reruns the failed test in a new JVM. Two reports, one with the failure and one with the pass, and no flaky test in either |
 | `maven-java17-forkcount0-multimodule` | Tests run inside the Maven JVM: one report per module, each with the correct `moduleDir` |
 | `gradle-java17-parallel-forks` | `maxParallelForks = 2`: two reports for the same module with different `workerId`s |
 | `gradle-java8-junit4-plain`, `gradle-java17-no-tests`, `maven-java8-surefire-2.12-jupiter` | Blind spots: no report is expected |
