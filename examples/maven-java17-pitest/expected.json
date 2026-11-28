@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "buildTool": "MAVEN",
+  "runner": null,
+  "tests": {
+    "byEngine": {
+      "junit-jupiter": 2
+    },
+    "succeeded": 2,
+    "failed": 0
+  },
+  "probeErrors": []
+}

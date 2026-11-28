@@ -22,8 +22,13 @@ public final class Main {
         ObjectMapper mapper = new ObjectMapper();
         for (String path : args) {
             JsonNode report = mapper.readTree(new File(path));
-            Level level = Classifier.classify(report);
-            StringBuilder line = new StringBuilder(path + ": LEVEL_" + level.number() + " (" + level.description() + ")");
+            StringBuilder line = new StringBuilder(path + ": ");
+            if (Classifier.isMutationRun(report)) {
+                line.append("not classified (a PIT minion's report: its failed tests are killed mutants)");
+            } else {
+                Level level = Classifier.classify(report);
+                line.append("LEVEL_").append(level.number()).append(" (").append(level.description()).append(")");
+            }
             Set<TestStyle> styles = Classifier.styles(report);
             if (!styles.isEmpty()) {
                 line.append(" styles:");

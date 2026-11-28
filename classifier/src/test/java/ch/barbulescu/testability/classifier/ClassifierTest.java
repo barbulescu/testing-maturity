@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.util.EnumSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ClassifierTest {
 
@@ -122,6 +124,21 @@ class ClassifierTest {
                         + "\"style\":{\"parameterized\":6,\"dynamic\":0,\"nested\":2}}}")));
         assertEquals(EnumSet.of(TestStyle.DYNAMIC),
                 Classifier.styles(json("{\"tests\":{\"style\":{\"parameterized\":0,\"dynamic\":3,\"nested\":0}}}")));
+    }
+
+    @Test
+    void pitMinionReportShowsMutationTesting() throws IOException {
+        JsonNode minion = json("{\"runner\":\"PITEST\",\"tests\":{\"succeeded\":4,\"failed\":5,\"skipped\":0},"
+                + "\"probeErrors\":[]}");
+        assertTrue(Classifier.isMutationRun(minion));
+        assertEquals(EnumSet.of(TestStyle.MUTATION_TESTING), Classifier.styles(minion));
+    }
+
+    @Test
+    void ordinaryReportIsNoMutationRun() throws IOException {
+        assertFalse(Classifier.isMutationRun(json("{\"runner\":null,\"tests\":{\"succeeded\":1}}")));
+        assertFalse(Classifier.isMutationRun(json("{\"tests\":{\"succeeded\":1}}")));
+        assertFalse(Classifier.isMutationRun(null));
     }
 
     @Test

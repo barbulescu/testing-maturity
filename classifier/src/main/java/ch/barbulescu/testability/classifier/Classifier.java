@@ -19,6 +19,16 @@ public final class Classifier {
     private Classifier() {
     }
 
+    /**
+     * Whether the report comes from one of PIT's minion JVMs. Those run the tests against
+     * mutated code, so their failed tests are killed mutants, not broken tests: such a report
+     * shows that the module runs mutation testing and says nothing about its level.
+     * {@link #classify} doesn't tell these apart, so callers check first.
+     */
+    public static boolean isMutationRun(JsonNode report) {
+        return report != null && "PITEST".equals(report.path("runner").asText(null));
+    }
+
     public static Level classify(JsonNode report) {
         if (report == null) {
             return Level.NO_VISIBILITY;
@@ -66,12 +76,15 @@ public final class Classifier {
     }
 
     /**
-     * The test styles a report shows: an engine that ran at least one test, or a non-zero
-     * count in {@code tests.style}. They say how a module tests, not how well, so they don't
+     * The test styles a report shows: an engine that ran at least one test, a PIT minion's
+     * report, or a non-zero count in {@code tests.style}. They say how a module tests, not how well, so they don't
      * change its level.
      */
     public static Set<TestStyle> styles(JsonNode report) {
         Set<TestStyle> styles = EnumSet.noneOf(TestStyle.class);
+        if (isMutationRun(report)) {
+            styles.add(TestStyle.MUTATION_TESTING);
+        }
         JsonNode tests = report == null ? null : report.get("tests");
         if (tests == null) {
             return styles;
