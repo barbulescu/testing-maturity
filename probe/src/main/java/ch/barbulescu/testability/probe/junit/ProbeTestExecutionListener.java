@@ -40,6 +40,7 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
     // The unique IDs of templates that repeat or retry one test rather than parameterize it.
     private static final Set<String> INSPECTED_TEMPLATES = ConcurrentHashMap.newKeySet();
     private static final FlakyTestDetector FLAKY_TESTS = new FlakyTestDetector();
+    private static final NoMoreInteractionsDetector NO_MORE_INTERACTIONS = new NoMoreInteractionsDetector();
 
     private volatile TestPlan testPlan;
     private final Map<String, Long> testStartNanos = new ConcurrentHashMap<>();
@@ -179,6 +180,20 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
         }
     }
 
+    /** Read from the bytecode, so only when Mockito is there to be called. */
+    private static boolean verifiesNoMoreInteractions(TestIdentifier test) {
+        TestSource source = test.getSource().orElse(null);
+        if (!MockitoHook.isObserved() || !(source instanceof MethodSource)) {
+            return false;
+        }
+        MethodSource methodSource = (MethodSource) source;
+        Class<?> testClass = loadClass(methodSource.getClassName());
+        Method method = testClass == null
+                ? null
+                : TestMethods.find(testClass, methodSource.getMethodName(), methodSource.getMethodParameterTypes());
+        return method != null && NO_MORE_INTERACTIONS.verifiesNoMoreInteractions(testClass, method);
+    }
+
     private static Class<?> loadClass(String className) {
         ClassLoader contextLoader = Thread.currentThread().getContextClassLoader();
         for (ClassLoader loader : new ClassLoader[] {contextLoader, ProbeTestExecutionListener.class.getClassLoader()}) {
@@ -229,6 +244,16 @@ public final class ProbeTestExecutionListener implements TestExecutionListener {
             String id = testIdentifier.getUniqueId();
             recorder.recordTestMockUsage(tracker.isSpringTest(id), tracker.usesMocks(id), tracker.mockKinds(id),
                     tracker.ownMockCount(id), tracker.classLevelMockCount(id), tracker.className(id));
+        });
+        Safe.run(() -> {
+            if (!testIdentifier.isTest()) {
+                return;
+            }
+            int kinds = TestNodeTracker.getInstance().verificationKinds(testIdentifier.getUniqueId());
+            if (verifiesNoMoreInteractions(testIdentifier)) {
+                kinds |= TestNodeTracker.VERIFIES_NO_MORE_INTERACTIONS;
+            }
+            ProbeRecorder.getInstance().recordTestVerifications(kinds);
         });
         Safe.run(() -> {
             if (!testIdentifier.isTest()) {

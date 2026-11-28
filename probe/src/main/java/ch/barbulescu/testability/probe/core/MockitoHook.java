@@ -8,11 +8,13 @@ package ch.barbulescu.testability.probe.core;
 public final class MockitoHook {
 
     private static final String MOCKITO_CLASS = "org.mockito.Mockito";
+    private static final String VERIFICATION_LISTENER_CLASS = "org.mockito.listeners.VerificationListener";
     private static final String INSTALLER_CLASS = "ch.barbulescu.testability.probe.mockito.MockitoListenerInstaller";
 
     private static volatile Runnable installer;
     private static volatile boolean unavailable;
     private static volatile boolean observed;
+    private static volatile boolean verificationsObserved;
 
     private MockitoHook() {
     }
@@ -27,6 +29,7 @@ public final class MockitoHook {
                 ClassLoader loader = MockitoHook.class.getClassLoader();
                 Class.forName(MOCKITO_CLASS, false, loader);
                 current = (Runnable) Class.forName(INSTALLER_CLASS, true, loader).getDeclaredConstructor().newInstance();
+                verificationsObserved = isPresent(VERIFICATION_LISTENER_CLASS, loader);
                 installer = current;
             }
             current.run();
@@ -37,8 +40,22 @@ public final class MockitoHook {
         }
     }
 
+    private static boolean isPresent(String className, ClassLoader loader) {
+        try {
+            Class.forName(className, false, loader);
+            return true;
+        } catch (ClassNotFoundException | LinkageError e) {
+            return false;
+        }
+    }
+
     /** False means a zero mock count says nothing: Mockito was absent or couldn't be hooked. */
     public static boolean isObserved() {
         return observed;
+    }
+
+    /** False means a zero count of tests calling {@code verify} says nothing: this Mockito has no verification listener. */
+    public static boolean isVerificationObserved() {
+        return observed && verificationsObserved;
     }
 }

@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Attributes what happens on a thread - Mockito creating a mock - to the
+ * Attributes what happens on a thread - Mockito creating a mock or verifying - to the
  * JUnit Platform node (test or container) currently running on it, so each
  * finished test can be classified by what happened during it or any of its
  * ancestors. Work done at class level (a {@code @BeforeAll}, a static field)
@@ -33,6 +33,10 @@ public final class TestNodeTracker {
     public static final int LENIENT = 4;
     public static final int SPY = 8;
 
+    /** How a test checked calls on its mocks, combined as bit flags. */
+    public static final int VERIFIES_INTERACTIONS = 1;
+    public static final int VERIFIES_NO_MORE_INTERACTIONS = 2;
+
     private static final TestNodeTracker INSTANCE = new TestNodeTracker();
 
     private final ThreadLocal<Deque<String>> running = ThreadLocal.withInitial(ArrayDeque::new);
@@ -41,6 +45,7 @@ public final class TestNodeTracker {
     private final Set<String> tests = ConcurrentHashMap.newKeySet();
     private final ThreadLocal<NodeMocks> pendingForNextTest = new ThreadLocal<>();
     private final Map<String, NodeMocks> mocksByNode = new ConcurrentHashMap<>();
+    private final Map<String, AtomicInteger> verificationsByNode = new ConcurrentHashMap<>();
     private final Set<String> springClasses = ConcurrentHashMap.newKeySet();
     private final Map<String, Integer> mockBeansBySpringClass = new ConcurrentHashMap<>();
     private final Set<String> springClassesDeclaringSpies = ConcurrentHashMap.newKeySet();
@@ -161,6 +166,31 @@ public final class TestNodeTracker {
             }
         }
         return false;
+    }
+
+    /**
+     * A Mockito verification on this thread, credited to the running node. One in
+     * {@code @AfterAll} runs after the class's tests have finished, so it counts for none of them.
+     * Engine roots are ignored, as for {@link #mockCreatedOnCurrentThread(int, boolean)}.
+     */
+    public void verificationOnCurrentThread(int kinds) {
+        String current = running.get().peek();
+        if (current == null || !parentOf.containsKey(current)) {
+            return;
+        }
+        verificationsByNode.computeIfAbsent(current, key -> new AtomicInteger()).accumulateAndGet(kinds, (a, b) -> a | b);
+    }
+
+    /** The verification flags of this node and its ancestors. */
+    public int verificationKinds(String id) {
+        int kinds = 0;
+        for (String node = id; node != null; node = parentOf.get(node)) {
+            AtomicInteger verifications = verificationsByNode.get(node);
+            if (verifications != null) {
+                kinds |= verifications.get();
+            }
+        }
+        return kinds;
     }
 
     /**

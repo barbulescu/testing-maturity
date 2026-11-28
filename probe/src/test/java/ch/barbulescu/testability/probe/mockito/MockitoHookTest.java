@@ -14,6 +14,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -154,6 +155,80 @@ class MockitoHookTest {
         MockitoHook.ensureInstalledOnCurrentThread();
 
         assertFalse(tracker.usesMocks(node));
+    }
+
+    @Test
+    void verifyIsAttributedToCurrentNode() {
+        String node = start("verify");
+        MockitoHook.ensureInstalledOnCurrentThread();
+        Runnable mock = Mockito.mock(Runnable.class);
+        mock.run();
+
+        Mockito.verify(mock).run();
+
+        assertTrue(MockitoHook.isVerificationObserved());
+        assertEquals(TestNodeTracker.VERIFIES_INTERACTIONS, tracker.verificationKinds(node));
+    }
+
+    @Test
+    void failedVerifyStillCounts() {
+        String node = start("failedVerify");
+        MockitoHook.ensureInstalledOnCurrentThread();
+        Runnable mock = Mockito.mock(Runnable.class);
+
+        assertThrows(AssertionError.class, () -> Mockito.verify(mock).run());
+
+        assertEquals(TestNodeTracker.VERIFIES_INTERACTIONS, tracker.verificationKinds(node));
+    }
+
+    @Test
+    void inOrderVerifyCounts() {
+        String node = start("inOrder");
+        MockitoHook.ensureInstalledOnCurrentThread();
+        Runnable mock = Mockito.mock(Runnable.class);
+        mock.run();
+
+        Mockito.inOrder(mock).verify(mock).run();
+
+        assertEquals(TestNodeTracker.VERIFIES_INTERACTIONS, tracker.verificationKinds(node));
+    }
+
+    @Test
+    void onlyModeVerifiesNoMoreInteractions() {
+        String node = start("only");
+        MockitoHook.ensureInstalledOnCurrentThread();
+        Runnable mock = Mockito.mock(Runnable.class);
+        mock.run();
+
+        Mockito.verify(mock, Mockito.only()).run();
+
+        assertEquals(TestNodeTracker.VERIFIES_INTERACTIONS | TestNodeTracker.VERIFIES_NO_MORE_INTERACTIONS,
+                tracker.verificationKinds(node));
+    }
+
+    /** Why NoMoreInteractionsDetector reads bytecode: Mockito tells no listener about these. */
+    @Test
+    void verifyNoMoreInteractionsReachesNoListener() {
+        String node = start("noMore");
+        MockitoHook.ensureInstalledOnCurrentThread();
+        Runnable mock = Mockito.mock(Runnable.class);
+
+        Mockito.verifyNoMoreInteractions(mock);
+        Mockito.verifyNoInteractions(mock);
+
+        assertEquals(0, tracker.verificationKinds(node));
+    }
+
+    @Test
+    void stubbingIsNoVerification() {
+        String node = start("stubbing");
+        MockitoHook.ensureInstalledOnCurrentThread();
+        @SuppressWarnings("unchecked")
+        Comparable<String> mock = Mockito.mock(Comparable.class);
+
+        Mockito.when(mock.compareTo("a")).thenReturn(1);
+
+        assertEquals(0, tracker.verificationKinds(node));
     }
 
     @Test

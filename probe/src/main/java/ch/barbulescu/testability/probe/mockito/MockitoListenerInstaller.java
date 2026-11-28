@@ -19,7 +19,8 @@ import java.lang.reflect.Method;
  */
 public final class MockitoListenerInstaller implements Runnable {
 
-    private static final ProbeMockCreationListener LISTENER = new ProbeMockCreationListener();
+    private static final ProbeMockCreationListener CREATION_LISTENER = new ProbeMockCreationListener();
+    private static final MockitoListener VERIFICATION_LISTENER = ProbeVerificationListener.createOrNull();
 
     private final Method addListener;
     private final Method removeListener;
@@ -35,13 +36,17 @@ public final class MockitoListenerInstaller implements Runnable {
         // Removed and re-added on every node start rather than once per thread: anything that
         // clears Mockito's thread-local listeners would otherwise silently blind the probe.
         // Adding twice would throw RedundantListenerException.
-        invoke(removeListener, framework);
-        invoke(addListener, framework);
+        invoke(removeListener, framework, CREATION_LISTENER);
+        invoke(addListener, framework, CREATION_LISTENER);
+        if (VERIFICATION_LISTENER != null) {
+            invoke(removeListener, framework, VERIFICATION_LISTENER);
+            invoke(addListener, framework, VERIFICATION_LISTENER);
+        }
     }
 
-    private static void invoke(Method method, MockitoFramework framework) {
+    private static void invoke(Method method, MockitoFramework framework, MockitoListener listener) {
         try {
-            method.invoke(framework, LISTENER);
+            method.invoke(framework, listener);
         } catch (IllegalAccessException e) {
             throw new IllegalStateException(e);
         } catch (InvocationTargetException e) {
